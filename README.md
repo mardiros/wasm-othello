@@ -1,5 +1,9 @@
 # Othello Game on WebAssembly written in Rust
 
+## Development status
+
+WIP - you cannot play right now.
+
 
 ## Development setup
 
