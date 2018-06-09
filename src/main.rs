@@ -18,6 +18,7 @@ pub use board::{Board, Cell, BOARD_SIZE};
 #[derive(Clone)]
 pub struct Store {
     board: Board,
+    player: Cell,
     game_over: bool,
     cell_width: u32,
 }
@@ -29,6 +30,7 @@ impl Store {
             board,
             cell_width,
             game_over: false,
+            player: Cell::Black,
         }
     }
 
@@ -41,7 +43,10 @@ impl Store {
     }
 
     pub fn paint(&self, context: &CanvasRenderingContext2d) {
-        self.board.paint(&context)
+        js! {
+            console.log(@{format!("{:?}", self.player)})
+        }
+        self.board.paint(self.player, context)
     }
 
     pub fn clicked(&mut self, x: usize, y: usize) {
@@ -49,7 +54,8 @@ impl Store {
             // prevent outside of the grid click
             return;
         }
-        self.board.set_cell(x, y, Cell::White);
+        self.board.set_cell(x, y, self.player);
+        self.player = self.player.opposite();
     }
 }
 

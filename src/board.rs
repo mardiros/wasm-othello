@@ -4,7 +4,7 @@ use std::f64::consts::PI;
 pub const BOARD_SIZE: usize = 8;
 pub const BOARD_SIZE_SQUARE: usize = BOARD_SIZE * BOARD_SIZE;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Cell {
     Empty,
     Black,
@@ -12,6 +12,14 @@ pub enum Cell {
 }
 
 impl Cell {
+    pub fn opposite(&self) -> Cell {
+        match *self {
+            Cell::Black => Cell::White,
+            Cell::White => Cell::Black,
+            Cell::Empty => panic!("No you can't"),
+        }
+    }
+
     fn paint(&self, context: &CanvasRenderingContext2d, x: f64, y: f64, width: f64) {
         let mut radius = width * 0.4;
         match *self {
@@ -49,6 +57,16 @@ pub struct Board {
 impl Board {
     pub fn new(cell_width: u32, margin_width: u32) -> Self {
         let mut cells = [Cell::Empty; BOARD_SIZE_SQUARE];
+        /*
+            0 1 2 3 4 5 6 7
+            8 9 0 1 2 3 4 5
+            6 7 8 9 0 1 2 3
+            4 5 6 B W 9 0 1
+            2 3 4 W B 7 8 9
+            0 1 2 3 4 5 6 7
+            8 9 0 1 2 3 4 5
+            6 7 8 9 0 1 2 3
+        */
         // fix that
         cells[3 * BOARD_SIZE + 3] = Cell::Black;
         cells[3 * BOARD_SIZE + 4] = Cell::White;
@@ -68,29 +86,20 @@ impl Board {
 
     pub fn get_possibilities(&self, cell: Cell) -> Vec<usize> {
         let mut result = vec![];
-        let opposite = match cell {
-            Cell::Black => Cell::White,
-            Cell::White => Cell::Black,
-            Cell::Empty => panic!("No you can't"),
-        };
+        let opposite = cell.opposite();
 
         for i in 0..BOARD_SIZE_SQUARE {
             if self.cells[i as usize] == cell {
-                /*
-                0 1 2 3 4 5 6 7
-                8 9 0 1 2 3 4 5
-                6 7 8 9 0 1 2 3
-                4 5 6 B W 9 0 1
-                2 3 4 W B 7 8 9
-                0 1 2 3 4 5 6 7
-                8 9 0 1 2 3 4 5
-                6 7 8 9 0 1 2 3
-                */
-
                 if let Some(r) = self.traverse_vertical_up(i, cell, opposite) {
                     result.push(r);
                 }
+                if let Some(r) = self.traverse_vertical_down(i, cell, opposite) {
+                    result.push(r);
+                }
                 if let Some(r) = self.traverse_horizontal_up(i, cell, opposite) {
+                    result.push(r);
+                }
+                if let Some(r) = self.traverse_horizontal_down(i, cell, opposite) {
                     result.push(r);
                 }
             }
@@ -98,7 +107,7 @@ impl Board {
         result
     }
 
-    pub fn traverse_vertical_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_vertical_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
         if self.cells[pos] != color {
             return None;
         }
@@ -119,13 +128,40 @@ impl Board {
                 break;
             }
         }
-        if result > 0 && self.cells[result] == Cell::Empty {
+        if self.cells[result] == Cell::Empty {
             return Some(result);
         }
         None
     }
 
-    pub fn traverse_horizontal_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_vertical_down(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+        if self.cells[pos] != color {
+            return None;
+        }
+        let mut result = pos;
+        if result > BOARD_SIZE_SQUARE - BOARD_SIZE {
+            return None;
+        }
+        result += BOARD_SIZE;
+        if self.cells[result] != opposite {
+            return None;
+        }
+        loop {
+            if result > BOARD_SIZE_SQUARE - BOARD_SIZE {
+                break;
+            }
+            result += BOARD_SIZE;
+            if self.cells[result] != opposite {
+                break;
+            }
+        }
+        if self.cells[result] == Cell::Empty {
+            return Some(result);
+        }
+        None
+    }
+
+    fn traverse_horizontal_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
         if self.cells[pos] != color {
             return None;
         }
@@ -152,7 +188,34 @@ impl Board {
         None
     }
 
-    pub fn paint(&self, context: &CanvasRenderingContext2d) {
+    fn traverse_horizontal_down(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+        if self.cells[pos] != color {
+            return None;
+        }
+        let mut result = pos;
+        if result % BOARD_SIZE == 0 {
+            return None;
+        }
+        result -= 1;
+        if self.cells[result] != opposite {
+            return None;
+        }
+        loop {
+            if result % BOARD_SIZE == 0 {
+                break;
+            }
+            result -= 1;
+            if self.cells[result] != opposite {
+                break;
+            }
+        }
+        if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
+            return Some(result);
+        }
+        None
+    }
+
+    pub fn paint(&self, player: Cell, context: &CanvasRenderingContext2d) {
         let width = self.cell_width - self.margin_width * 2.;
 
         for x in 0..BOARD_SIZE {
@@ -179,7 +242,7 @@ impl Board {
             }
         }
 
-        for pos in self.get_possibilities(Cell::Black) {
+        for pos in self.get_possibilities(player) {
             let width = self.cell_width - self.margin_width * 2.;
             let posx = (pos as f64 % BOARD_SIZE as f64).floor() * self.cell_width;
             let posy = (pos as f64 / BOARD_SIZE as f64).floor() * self.cell_width;
