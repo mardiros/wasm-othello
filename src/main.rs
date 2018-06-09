@@ -1,4 +1,4 @@
-//#[macro_use]
+#[macro_use]
 extern crate stdweb;
 
 use std::rc::Rc;
@@ -13,24 +13,21 @@ use stdweb::web::event::{ClickEvent, ConcreteEvent};
 
 mod board;
 
-pub use board::{Cell, Board};
-
+pub use board::{Board, Cell, BOARD_SIZE};
 
 #[derive(Clone)]
 pub struct Store {
     board: Board,
     game_over: bool,
     cell_width: u32,
-    row_count: u32,
 }
 
 impl Store {
-    pub fn new(cell_width: u32, row_count: u32) -> Store {
+    pub fn new(cell_width: u32) -> Store {
         let board = Board::new(cell_width, 1);
         Store {
             board,
             cell_width,
-            row_count,
             game_over: false,
         }
     }
@@ -43,24 +40,18 @@ impl Store {
         self.cell_width
     }
 
-    pub fn row_count(&self) -> u32 {
-        self.row_count
-    }
-
     pub fn paint(&self, context: &CanvasRenderingContext2d) {
         self.board.paint(&context)
     }
 
     pub fn clicked(&mut self, x: usize, y: usize) {
-        let row_count = self.row_count as usize; 
-        if x > row_count && y > row_count  {
+        if x > BOARD_SIZE && y > BOARD_SIZE {
             // prevent outside of the grid click
             return;
         }
         self.board.set_cell(x, y, Cell::White);
     }
 }
-
 
 struct Canvas {
     canvas: CanvasElement,
@@ -75,8 +66,8 @@ impl Canvas {
             .try_into()
             .unwrap();
 
-        let canvas_width = store.cell_width() as u32 * store.row_count();
-        let canvas_height = store.cell_width() as u32 * store.row_count();
+        let canvas_width = store.cell_width() as u32 * BOARD_SIZE as u32;
+        let canvas_height = store.cell_width() as u32 * BOARD_SIZE as u32;
 
         canvas.set_width(canvas_width);
         canvas.set_height(canvas_height);
@@ -130,8 +121,10 @@ impl AnimatedCanvas {
 }
 
 fn main() {
-    let row_count = 8;  // Buggy if changed (hardcoded for Board)
-    let store = Store::new(60, row_count);
+    js! {
+        console.log("Welcome aboard")
+    }
+    let store = Store::new(60);
     let canvas = Canvas::new("#game", &store);
     let mut ac = AnimatedCanvas::new(store, canvas);
     ac.attach_event();
