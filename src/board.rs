@@ -80,8 +80,13 @@ impl Board {
         }
     }
 
-    pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) {
-        self.cells[x + y * 8 as usize] = cell;
+    pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) -> Result<(), ()> {
+        let pos = x + y * 8 as usize;
+        if !self.get_possibilities(cell).contains(&pos) {
+            return Err(());
+        }
+        self.cells[pos] = cell;
+        return Ok(());
     }
 
     pub fn get_possibilities(&self, cell: Cell) -> Vec<usize> {

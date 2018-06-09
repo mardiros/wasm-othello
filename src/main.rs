@@ -54,8 +54,9 @@ impl Store {
             // prevent outside of the grid click
             return;
         }
-        self.board.set_cell(x, y, self.player);
-        self.player = self.player.opposite();
+        if let Ok(_) = self.board.set_cell(x, y, self.player) {
+            self.player = self.player.opposite();
+        }
     }
 }
 
