@@ -82,29 +82,44 @@ impl Board {
 
     pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) -> Result<(), ()> {
         let pos = x + y * 8 as usize;
-        if !self.get_possibilities(cell).contains(&pos) {
+        let mut collected: Vec<usize> = vec![];
+        if !self.get_possibilities_collect_pos(cell, Some(pos), Some(&mut collected))
+            .contains(&pos)
+        {
             return Err(());
         }
-        self.cells[pos] = cell;
+        for pos in collected {
+            self.cells[pos] = cell;
+        }
         return Ok(());
     }
 
     pub fn get_possibilities(&self, cell: Cell) -> Vec<usize> {
+        self.get_possibilities_collect_pos(cell, None, None)
+    }
+
+    pub fn get_possibilities_collect_pos(
+        &self,
+        cell: Cell,
+        pos: Option<usize>,
+        mut matched: Option<&mut Vec<usize>>,
+    ) -> Vec<usize> {
         let mut result = vec![];
         let opposite = cell.opposite();
 
         for i in 0..BOARD_SIZE_SQUARE {
             if self.cells[i as usize] == cell {
-                if let Some(r) = self.traverse_vertical_up(i, cell, opposite) {
+                if let Some(r) = self.traverse_vertical_up(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
-                if let Some(r) = self.traverse_vertical_down(i, cell, opposite) {
+                if let Some(r) = self.traverse_vertical_down(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
-                if let Some(r) = self.traverse_horizontal_up(i, cell, opposite) {
+                if let Some(r) = self.traverse_horizontal_up(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
-                if let Some(r) = self.traverse_horizontal_down(i, cell, opposite) {
+                if let Some(r) = self.traverse_horizontal_down(i, cell, pos, &mut matched, opposite)
+                {
                     result.push(r);
                 }
             }
@@ -112,7 +127,15 @@ impl Board {
         result
     }
 
-    fn traverse_vertical_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_vertical_up(
+        &self,
+        pos: usize,
+        color: Cell,
+        match_pos: Option<usize>,
+        matched: &mut Option<&mut Vec<usize>>,
+        opposite: Cell,
+    ) -> Option<usize> {
+        let mut collected: Vec<usize> = vec![];
         if self.cells[pos] != color {
             return None;
         }
@@ -128,18 +151,33 @@ impl Board {
             if result < BOARD_SIZE {
                 break;
             }
+            collected.push(result.clone());
             result -= BOARD_SIZE;
             if self.cells[result] != opposite {
                 break;
             }
         }
         if self.cells[result] == Cell::Empty {
+            if let &mut Some(ref mut cells) = matched {
+                if match_pos.is_some() && match_pos.unwrap() == result {
+                    collected.push(result.clone());
+                    cells.extend(collected.as_slice());
+                }
+            }
             return Some(result);
         }
         None
     }
 
-    fn traverse_vertical_down(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_vertical_down(
+        &self,
+        pos: usize,
+        color: Cell,
+        match_pos: Option<usize>,
+        matched: &mut Option<&mut Vec<usize>>,
+        opposite: Cell,
+    ) -> Option<usize> {
+        let mut collected: Vec<usize> = vec![];
         if self.cells[pos] != color {
             return None;
         }
@@ -155,18 +193,33 @@ impl Board {
             if result > BOARD_SIZE_SQUARE - BOARD_SIZE {
                 break;
             }
+            collected.push(result.clone());
             result += BOARD_SIZE;
             if self.cells[result] != opposite {
                 break;
             }
         }
         if self.cells[result] == Cell::Empty {
+            if let &mut Some(ref mut cells) = matched {
+                if match_pos.is_some() && match_pos.unwrap() == result {
+                    collected.push(result.clone());
+                    cells.extend(collected.as_slice());
+                }
+            }
             return Some(result);
         }
         None
     }
 
-    fn traverse_horizontal_up(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_horizontal_up(
+        &self,
+        pos: usize,
+        color: Cell,
+        match_pos: Option<usize>,
+        matched: &mut Option<&mut Vec<usize>>,
+        opposite: Cell,
+    ) -> Option<usize> {
+        let mut collected: Vec<usize> = vec![];
         if self.cells[pos] != color {
             return None;
         }
@@ -182,18 +235,33 @@ impl Board {
             if result % BOARD_SIZE == (BOARD_SIZE - 1) {
                 break;
             }
+            collected.push(result.clone());
             result += 1;
             if self.cells[result] != opposite {
                 break;
             }
         }
         if result > 0 && self.cells[result] == Cell::Empty {
+            if let &mut Some(ref mut cells) = matched {
+                if match_pos.is_some() && match_pos.unwrap() == result {
+                    collected.push(result.clone());
+                    cells.extend(collected.as_slice());
+                }
+            }
             return Some(result);
         }
         None
     }
 
-    fn traverse_horizontal_down(&self, pos: usize, color: Cell, opposite: Cell) -> Option<usize> {
+    fn traverse_horizontal_down(
+        &self,
+        pos: usize,
+        color: Cell,
+        match_pos: Option<usize>,
+        matched: &mut Option<&mut Vec<usize>>,
+        opposite: Cell,
+    ) -> Option<usize> {
+        let mut collected: Vec<usize> = vec![];
         if self.cells[pos] != color {
             return None;
         }
@@ -209,12 +277,19 @@ impl Board {
             if result % BOARD_SIZE == 0 {
                 break;
             }
+            collected.push(result.clone());
             result -= 1;
             if self.cells[result] != opposite {
                 break;
             }
         }
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
+            if let &mut Some(ref mut cells) = matched {
+                if match_pos.is_some() && match_pos.unwrap() == result {
+                    collected.push(result.clone());
+                    cells.extend(collected.as_slice());
+                }
+            }
             return Some(result);
         }
         None
