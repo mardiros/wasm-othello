@@ -17,7 +17,6 @@ mod board;
 
 pub use board::{Board, Cell, BOARD_SIZE};
 
-
 pub struct BoardUI {
     board: Board,
     cell_width: f64,
@@ -33,8 +32,14 @@ impl BoardUI {
         }
     }
 
-
-    fn paint_cell(&self, cell: &Cell, context: &CanvasRenderingContext2d, x: f64, y: f64, width: f64) {
+    fn paint_cell(
+        &self,
+        cell: &Cell,
+        context: &CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+        width: f64,
+    ) {
         let mut radius = width * 0.4;
         match *cell {
             Cell::Black => {
@@ -90,13 +95,18 @@ impl BoardUI {
             let width = self.cell_width - self.margin_width * 2.;
             let posx = (pos as f64 % BOARD_SIZE as f64).floor() * self.cell_width;
             let posy = (pos as f64 / BOARD_SIZE as f64).floor() * self.cell_width;
-            self.paint_cell(self.board.rawcell(pos), &context, posx + width / 2., posy + width / 2., width);
+            self.paint_cell(
+                self.board.rawcell(pos),
+                &context,
+                posx + width / 2.,
+                posy + width / 2.,
+                width,
+            );
         }
     }
     fn can_play(&self, player: Cell) -> bool {
         self.board.get_possibilities(player).len() > 0
     }
-
 }
 
 pub struct Store {
