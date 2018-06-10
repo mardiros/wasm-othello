@@ -76,6 +76,12 @@ impl Board {
         &self.cells[pos]
     }
 
+    pub fn score(&self) -> (usize, usize) {
+        let mut score = (0, 0);
+        self.cells.iter().for_each(|cell| {match cell { &Cell::Black=> score.0 += 1, &Cell::White => score.1 += 1, _ => {}}});
+        score
+    }
+
     pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) -> Result<(), ()> {
         let pos = x + y * 8 as usize;
         let mut collected: Vec<usize> = vec![];
@@ -726,6 +732,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_score() {
+        let board = Board::from_string(
+            r#"
+            W B B B B B B B
+            W W W B B B B B
+            B W W W W W W B
+            B W W W B B B B
+            B W W W W W W W
+            B W W W B W B B
+            B W W W B B W W
+            B W B B B B B W
+            "#,
+        );
+        let score = board.score();
+        assert_eq!(score, (33, 31))
     }
 
 }

@@ -107,6 +107,9 @@ impl BoardUI {
     fn can_play(&self, player: Cell) -> bool {
         self.board.get_possibilities(player).len() > 0
     }
+    fn score(&self) -> (usize, usize) {
+        self.board.score()
+    }
 }
 
 pub struct Store {
@@ -133,24 +136,23 @@ impl Store {
     }
 
     fn paint(&self, context: &CanvasRenderingContext2d) {
-        js! {
-            console.log(@{format!("{:?}", self.player)})
-        }
-        self.board.paint(self.player, context)
+        self.board.paint(self.player, context);
+        let score = self.board.score();
+        js! {console.log(@{format!("Black: {} - White: {}", score.0, score.1)})}
     }
 
-    fn clicked(&mut self, x: usize, y: usize) -> Result<(), ()> {
+    fn play(&mut self, x: usize, y: usize) -> Result<(), ()> {
         if x > BOARD_SIZE && y > BOARD_SIZE {
             // prevent outside of the grid click
-            return Ok(());
+            return Err(());
         }
         if let Ok(_) = self.board.board.set_cell(x, y, self.player) {
             if self.board.can_play(self.player.opposite()) {
                 self.player = self.player.opposite();
                 js!{ console.log(@{format!("Player {:?} play", self.player)}) }
-            } else if self.board.can_play(self.player) {
+            } else if !self.board.can_play(self.player) {
                 js!{ console.log(@{format!("Game Over")}) }
-                return Err(());
+                self.game_over = true;
             }
         }
         Ok(())
@@ -211,10 +213,8 @@ impl AnimatedCanvas {
             let mut store = store.borrow_mut();
             let x = (event.offset_x() / store.cell_width() as f64) as usize;
             let y = (event.offset_y() / store.cell_width() as f64) as usize;
-            let res = store.clicked(x, y);
-            store.paint(&context);
-            if res.is_err() {
-                store.game_over = true;
+            if let Ok(_) = store.play(x, y) {
+                store.paint(&context);
             }
         });
     }
