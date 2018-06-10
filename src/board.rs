@@ -70,11 +70,13 @@ impl Board {
             8 9 0 1 2 3 4 5
             6 7 8 9 0 1 2 3
         */
-        // fix that
-        cells[3 * BOARD_SIZE + 3] = Cell::Black;
-        cells[3 * BOARD_SIZE + 4] = Cell::White;
-        cells[4 * BOARD_SIZE + 3] = Cell::White;
-        cells[4 * BOARD_SIZE + 4] = Cell::Black;
+        let centerc = (BOARD_SIZE as f64 / 2.0).ceil() as usize;
+        let centerf = centerc - 1; 
+
+        cells[centerf * BOARD_SIZE + centerf] = Cell::Black;
+        cells[centerf * BOARD_SIZE + centerc] = Cell::White;
+        cells[centerc * BOARD_SIZE + centerf] = Cell::White;
+        cells[centerc * BOARD_SIZE + centerc] = Cell::Black;
 
         Board {
             cells,
