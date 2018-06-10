@@ -49,14 +49,21 @@ impl Store {
         self.board.paint(self.player, context)
     }
 
-    pub fn clicked(&mut self, x: usize, y: usize) {
+    pub fn clicked(&mut self, x: usize, y: usize) -> Result<(), ()> {
         if x > BOARD_SIZE && y > BOARD_SIZE {
             // prevent outside of the grid click
-            return;
+            return Ok(());
         }
         if let Ok(_) = self.board.set_cell(x, y, self.player) {
-            self.player = self.player.opposite();
+            if self.board.get_possibilities(self.player.opposite()).len() > 0 {
+                self.player = self.player.opposite();
+                js!{ console.log(@{format!("Player {:?} play", self.player)}) }
+            } else if self.board.get_possibilities(self.player).len() == 0 {
+                js!{ console.log(@{format!("Game Over")}) }
+                return Err(());
+            }
         }
+        Ok(())
     }
 }
 
@@ -74,10 +81,9 @@ impl Canvas {
             .unwrap();
 
         let canvas_width = store.cell_width() as u32 * BOARD_SIZE as u32;
-        let canvas_height = store.cell_width() as u32 * BOARD_SIZE as u32;
 
         canvas.set_width(canvas_width);
-        canvas.set_height(canvas_height);
+        canvas.set_height(canvas_width);
 
         Canvas { canvas }
     }
@@ -115,8 +121,11 @@ impl AnimatedCanvas {
             let mut store = store.borrow_mut();
             let x = (event.offset_x() / store.cell_width() as f64) as usize;
             let y = (event.offset_y() / store.cell_width() as f64) as usize;
-            store.clicked(x, y);
+            let res = store.clicked(x, y);
             store.paint(&context);
+            if res.is_err() {
+                store.game_over = true;
+            }
         });
     }
 

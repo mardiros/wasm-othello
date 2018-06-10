@@ -16,7 +16,10 @@ impl Cell {
         match *self {
             Cell::Black => Cell::White,
             Cell::White => Cell::Black,
-            Cell::Empty => panic!("No you can't"),
+            Cell::Empty => {
+                //js! { console.log(@{format!("Empty cell does not have opposite")});};
+                panic!("No you can't")
+            }
         }
     }
 
@@ -109,34 +112,42 @@ impl Board {
 
         for i in 0..BOARD_SIZE_SQUARE {
             if self.cells[i as usize] == cell {
+                //js! { console.log(@{format!("traverse_vertical_up")});}
                 if let Some(r) = self.traverse_vertical_up(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_vertical_down")});}
                 if let Some(r) = self.traverse_vertical_down(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_up")});}
                 if let Some(r) = self.traverse_horizontal_up(i, cell, pos, &mut matched, opposite) {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_down")});}
                 if let Some(r) = self.traverse_horizontal_down(i, cell, pos, &mut matched, opposite)
                 {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_up_vertical_up")});}
                 if let Some(r) =
                     self.traverse_horizontal_up_vertical_up(i, cell, pos, &mut matched, opposite)
                 {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_down_vertical_up")});}
                 if let Some(r) =
                     self.traverse_horizontal_down_vertical_up(i, cell, pos, &mut matched, opposite)
                 {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_up_vertical_down")});}
                 if let Some(r) =
                     self.traverse_horizontal_up_vertical_down(i, cell, pos, &mut matched, opposite)
                 {
                     result.push(r);
                 }
+                //js! { console.log(@{format!("traverse_horizontal_down_vertical_down")});}
                 if let Some(r) = self.traverse_horizontal_down_vertical_down(
                     i,
                     cell,
@@ -180,7 +191,8 @@ impl Board {
                 break;
             }
         }
-        if self.cells[result] == Cell::Empty {
+        //js!{ console.log(@{format!("{}", result)})};
+        if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
                     collected.push(result.clone());
@@ -200,10 +212,11 @@ impl Board {
         matched: &mut Option<&mut Vec<usize>>,
         opposite: Cell,
     ) -> Option<usize> {
+        //js!{ console.log(@{format!("Pos {}", pos)})};
         if self.cells[pos] != color {
             return None;
         }
-        if pos > BOARD_SIZE_SQUARE - BOARD_SIZE {
+        if pos >= BOARD_SIZE_SQUARE - BOARD_SIZE {
             return None;
         }
         let mut collected: Vec<usize> = vec![];
@@ -212,16 +225,18 @@ impl Board {
             return None;
         }
         loop {
+            //js!{ console.log(@{format!("Looping {}", result)})};
             if result > BOARD_SIZE_SQUARE - BOARD_SIZE {
                 break;
             }
             collected.push(result.clone());
             result += BOARD_SIZE;
-            if self.cells[result] != opposite {
+            if result > BOARD_SIZE_SQUARE - 1 || self.cells[result] != opposite {
                 break;
             }
         }
-        if self.cells[result] == Cell::Empty {
+        //js!{ console.log(@{format!("{}", result)})};
+        if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
                     collected.push(result.clone());
@@ -262,7 +277,8 @@ impl Board {
                 break;
             }
         }
-        if result > 0 && self.cells[result] == Cell::Empty {
+        //js!{ console.log(@{format!("{}", result)})};
+        if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
                     collected.push(result.clone());
@@ -303,6 +319,7 @@ impl Board {
                 break;
             }
         }
+        //js!{ console.log(@{format!("{}", result)})};
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
@@ -361,6 +378,7 @@ impl Board {
                 break;
             }
         }
+        //js!{ console.log(@{format!("{}", result)})};
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
@@ -408,6 +426,7 @@ impl Board {
                 break;
             }
         }
+        //js!{ console.log(@{format!("{}", result)})};
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
@@ -428,13 +447,14 @@ impl Board {
         matched: &mut Option<&mut Vec<usize>>,
         opposite: Cell,
     ) -> Option<usize> {
+        //js!{ console.log(@{format!("Pos {}", pos)})};
         if self.cells[pos] != color {
             return None;
         }
         if pos % BOARD_SIZE == (BOARD_SIZE - 1) {
             return None;
         }
-        if pos > BOARD_SIZE_SQUARE - BOARD_SIZE {
+        if pos >= BOARD_SIZE_SQUARE - BOARD_SIZE - 1 {
             return None;
         }
         let mut collected: Vec<usize> = vec![];
@@ -451,10 +471,11 @@ impl Board {
             }
             collected.push(result.clone());
             result += BOARD_SIZE + 1;
-            if self.cells[result] != opposite {
+            if result > BOARD_SIZE_SQUARE - 1 || self.cells[result] != opposite {
                 break;
             }
         }
+        //js!{ console.log(@{format!("{}", result)})};
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
@@ -475,13 +496,24 @@ impl Board {
         matched: &mut Option<&mut Vec<usize>>,
         opposite: Cell,
     ) -> Option<usize> {
+        /*
+            0 1 2 3 4 5 6 7
+            8 9 0 1 2 3 4 5
+            6 7 8 9 0 1 2 3
+            4 5 6 7 9 9 0 1    
+            2 3 4 5 6 7 8 9
+            0 1 B 3 4 5 6 7
+            8 W 0 1 2 3 4 5
+            6 7 8 9 0 1 2 3
+        */
+
         if self.cells[pos] != color {
             return None;
         }
         if pos % BOARD_SIZE == 0 {
             return None;
         }
-        if pos > BOARD_SIZE_SQUARE - BOARD_SIZE {
+        if pos >= BOARD_SIZE_SQUARE - BOARD_SIZE {
             return None;
         }
         let mut collected: Vec<usize> = vec![];
@@ -498,10 +530,12 @@ impl Board {
             }
             collected.push(result.clone());
             result += BOARD_SIZE - 1;
-            if self.cells[result] != opposite {
+            if result > BOARD_SIZE_SQUARE - 1 || self.cells[result] != opposite {
                 break;
             }
         }
+
+        //js!{ console.log(@{format!("{}", result)})};
         if result < BOARD_SIZE_SQUARE && self.cells[result] == Cell::Empty {
             if let &mut Some(ref mut cells) = matched {
                 if match_pos.is_some() && match_pos.unwrap() == result {
