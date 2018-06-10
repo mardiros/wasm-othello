@@ -5,9 +5,11 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use stdweb::traits::*;
+use std::f64::consts::PI;
+
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, CanvasRenderingContext2d, EventListenerHandle};
+use stdweb::web::{document, CanvasRenderingContext2d, EventListenerHandle, FillRule};
 
 use stdweb::web::event::{ClickEvent, ConcreteEvent};
 
@@ -15,17 +17,99 @@ mod board;
 
 pub use board::{Board, Cell, BOARD_SIZE};
 
-#[derive(Clone)]
-pub struct Store {
+
+pub struct BoardUI {
     board: Board,
+    cell_width: f64,
+    margin_width: f64,
+}
+
+impl BoardUI {
+    pub fn new(board: Board, cell_width: u32, margin_width: u32) -> Self {
+        BoardUI {
+            board,
+            cell_width: cell_width as f64,
+            margin_width: margin_width as f64,
+        }
+    }
+
+
+    fn paint_cell(&self, cell: &Cell, context: &CanvasRenderingContext2d, x: f64, y: f64, width: f64) {
+        let mut radius = width * 0.4;
+        match *cell {
+            Cell::Black => {
+                context.begin_path();
+                context.set_fill_style_color("#111");
+                context.set_stroke_style_color("#000");
+            }
+            Cell::White => {
+                context.begin_path();
+                context.set_fill_style_color("#eee");
+                context.set_stroke_style_color("#fff");
+            }
+            Cell::Empty => {
+                radius = radius * 0.3;
+                context.begin_path();
+                context.set_fill_style_color("#44f");
+                context.set_stroke_style_color("#aaf");
+            }
+        }
+        context.move_to(x + radius, y);
+        context.arc(x, y, radius, 0., 2. * PI, false);
+        context.fill(FillRule::NonZero);
+        context.stroke();
+    }
+
+    pub fn paint(&self, player: Cell, context: &CanvasRenderingContext2d) {
+        let width = self.cell_width - self.margin_width * 2.;
+
+        for x in 0..BOARD_SIZE {
+            for y in 0..BOARD_SIZE {
+                let posx = self.cell_width * (x as f64);
+                let posy = self.cell_width * (y as f64);
+
+                // Borders could use stroke instead
+                context.set_fill_style_color("#333");
+                context.fill_rect(posx, posy, self.cell_width, self.cell_width);
+
+                context.set_fill_style_color("#383");
+                context.fill_rect(
+                    posx + self.margin_width,
+                    posy + self.margin_width,
+                    width,
+                    width,
+                );
+                let cell = self.board.cell(x, y);
+                if *cell != Cell::Empty {
+                    self.paint_cell(cell, &context, posx + width / 2., posy + width / 2., width);
+                }
+            }
+        }
+
+        for pos in self.board.get_possibilities(player) {
+            let width = self.cell_width - self.margin_width * 2.;
+            let posx = (pos as f64 % BOARD_SIZE as f64).floor() * self.cell_width;
+            let posy = (pos as f64 / BOARD_SIZE as f64).floor() * self.cell_width;
+            self.paint_cell(self.board.rawcell(pos), &context, posx + width / 2., posy + width / 2., width);
+        }
+    }
+    fn can_play(&self, player: Cell) -> bool {
+        self.board.get_possibilities(player).len() > 0
+    }
+
+}
+
+pub struct Store {
+    board: BoardUI,
     player: Cell,
     game_over: bool,
     cell_width: u32,
 }
 
 impl Store {
-    pub fn new(cell_width: u32) -> Store {
-        let board = Board::new(cell_width, 1);
+    fn new(cell_width: u32) -> Self {
+        let board = Board::new();
+        let board = BoardUI::new(board, cell_width, 1);
         Store {
             board,
             cell_width,
@@ -34,31 +118,27 @@ impl Store {
         }
     }
 
-    pub fn board(&self) -> &Board {
-        &self.board
-    }
-
-    pub fn cell_width(&self) -> u32 {
+    fn cell_width(&self) -> u32 {
         self.cell_width
     }
 
-    pub fn paint(&self, context: &CanvasRenderingContext2d) {
+    fn paint(&self, context: &CanvasRenderingContext2d) {
         js! {
             console.log(@{format!("{:?}", self.player)})
         }
         self.board.paint(self.player, context)
     }
 
-    pub fn clicked(&mut self, x: usize, y: usize) -> Result<(), ()> {
+    fn clicked(&mut self, x: usize, y: usize) -> Result<(), ()> {
         if x > BOARD_SIZE && y > BOARD_SIZE {
             // prevent outside of the grid click
             return Ok(());
         }
-        if let Ok(_) = self.board.set_cell(x, y, self.player) {
-            if self.board.get_possibilities(self.player.opposite()).len() > 0 {
+        if let Ok(_) = self.board.board.set_cell(x, y, self.player) {
+            if self.board.can_play(self.player.opposite()) {
                 self.player = self.player.opposite();
                 js!{ console.log(@{format!("Player {:?} play", self.player)}) }
-            } else if self.board.get_possibilities(self.player).len() == 0 {
+            } else if self.board.can_play(self.player) {
                 js!{ console.log(@{format!("Game Over")}) }
                 return Err(());
             }

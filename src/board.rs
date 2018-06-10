@@ -1,6 +1,3 @@
-use stdweb::web::{CanvasRenderingContext2d, FillRule};
-use std::f64::consts::PI;
-
 pub const BOARD_SIZE: usize = 8;
 pub const BOARD_SIZE_SQUARE: usize = BOARD_SIZE * BOARD_SIZE;
 
@@ -22,43 +19,15 @@ impl Cell {
             }
         }
     }
-
-    fn paint(&self, context: &CanvasRenderingContext2d, x: f64, y: f64, width: f64) {
-        let mut radius = width * 0.4;
-        match *self {
-            Cell::Black => {
-                context.begin_path();
-                context.set_fill_style_color("#111");
-                context.set_stroke_style_color("#000");
-            }
-            Cell::White => {
-                context.begin_path();
-                context.set_fill_style_color("#eee");
-                context.set_stroke_style_color("#fff");
-            }
-            Cell::Empty => {
-                radius = radius * 0.3;
-                context.begin_path();
-                context.set_fill_style_color("#44f");
-                context.set_stroke_style_color("#aaf");
-            }
-        }
-        context.move_to(x + radius, y);
-        context.arc(x, y, radius, 0., 2. * PI, false);
-        context.fill(FillRule::NonZero);
-        context.stroke();
-    }
 }
 
 #[derive(Clone)]
 pub struct Board {
     cells: [Cell; BOARD_SIZE_SQUARE],
-    cell_width: f64,
-    margin_width: f64,
 }
 
 impl Board {
-    pub fn new(cell_width: u32, margin_width: u32) -> Self {
+    pub fn new() -> Self {
         let mut cells = [Cell::Empty; BOARD_SIZE_SQUARE];
         /*
             0 1 2 3 4 5 6 7
@@ -80,9 +49,16 @@ impl Board {
 
         Board {
             cells,
-            cell_width: cell_width as f64,
-            margin_width: margin_width as f64,
         }
+    }
+
+    pub fn cell(&self, x: usize, y: usize) -> &Cell {
+        let pos = x + y * BOARD_SIZE;
+        &self.cells[pos]
+    }
+
+    pub fn rawcell(&self, pos: usize) -> &Cell {
+        &self.cells[pos]
     }
 
     pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) -> Result<(), ()> {
@@ -545,39 +521,4 @@ impl Board {
         None
     }
 
-    pub fn paint(&self, player: Cell, context: &CanvasRenderingContext2d) {
-        let width = self.cell_width - self.margin_width * 2.;
-
-        for x in 0..BOARD_SIZE {
-            for y in 0..BOARD_SIZE {
-                let posx = self.cell_width * (x as f64);
-                let posy = self.cell_width * (y as f64);
-
-                // Borders could use stroke instead
-                context.set_fill_style_color("#333");
-                context.fill_rect(posx, posy, self.cell_width, self.cell_width);
-
-                context.set_fill_style_color("#383");
-                context.fill_rect(
-                    posx + self.margin_width,
-                    posy + self.margin_width,
-                    width,
-                    width,
-                );
-
-                let pos = x + y * BOARD_SIZE;
-                if self.cells[pos] != Cell::Empty {
-                    self.cells[pos].paint(&context, posx + width / 2., posy + width / 2., width);
-                }
-            }
-        }
-
-        for pos in self.get_possibilities(player) {
-            let width = self.cell_width - self.margin_width * 2.;
-            let posx = (pos as f64 % BOARD_SIZE as f64).floor() * self.cell_width;
-            let posy = (pos as f64 / BOARD_SIZE as f64).floor() * self.cell_width;
-
-            self.cells[pos].paint(&context, posx + width / 2., posy + width / 2., width);
-        }
-    }
 }
