@@ -3,6 +3,65 @@ use std::collections::HashSet;
 pub const BOARD_SIZE: usize = 8;
 pub const BOARD_SIZE_SQUARE: usize = BOARD_SIZE * BOARD_SIZE;
 
+
+macro_rules! traverse_board {
+
+    ($name:ident, $self_:ident, $result:ident,  $step: expr, $( $test:expr ),* )  => {
+
+        fn $name(
+            &$self_,
+            pos: usize,
+            color: Cell,
+            match_pos: Option<usize>,
+            matched: &mut Vec<usize>,
+            opposite: Cell,
+        ) -> Option<usize> {
+
+            let mut $result = pos;
+
+            if $self_.cells[pos] != color {
+                return None;
+            }
+            $(
+                if $test {
+                    return None;
+                }
+            )*
+            let mut collected: Vec<usize> = Vec::new();
+            $step;
+            if $result >=BOARD_SIZE_SQUARE {
+                return None;
+            }
+
+            if $self_.cells[$result] != opposite {
+                return None;
+            }
+            loop {
+                $(
+                    if $test {
+                        break;
+                    }
+                )*
+                collected.push($result.clone());
+                $step;
+                if $result > BOARD_SIZE_SQUARE - 1 || $self_.cells[$result] != opposite {
+                    break;
+                }
+            }
+
+            if $result < BOARD_SIZE_SQUARE && $self_.cells[$result] == Cell::Empty {
+                if match_pos.is_some() && match_pos.unwrap() == $result {
+                    collected.push($result.clone());
+                    matched.extend(collected.as_slice());
+                }
+                return Some($result);
+            }
+            None
+        }
+    }
+}
+
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Cell {
     Empty,
@@ -84,7 +143,7 @@ impl Board {
 
     pub fn set_cell(&mut self, x: usize, y: usize, cell: Cell) -> Result<(), ()> {
         let pos = x + y * 8 as usize;
-        let mut collected: Vec<usize> = vec![];
+        let mut collected: Vec<usize> = Vec::new();
         if !self.get_possibilities_collect_pos(cell, Some(pos), Some(&mut collected))
             .contains(&pos)
         {
@@ -185,6 +244,74 @@ impl Board {
         res
     }
 
+    traverse_board!(
+        traverse_vertical_up,
+        self,
+        result,
+        result -= BOARD_SIZE,
+        result < BOARD_SIZE
+        );
+
+    traverse_board!(
+        traverse_vertical_down,
+        self,
+        result,
+        result += BOARD_SIZE,
+        result > BOARD_SIZE_SQUARE - BOARD_SIZE
+        );
+
+    traverse_board!(
+        traverse_horizontal_up,
+        self,
+        result,
+        result += 1,
+        result % BOARD_SIZE == (BOARD_SIZE - 1)
+        );
+
+    traverse_board!(
+        traverse_horizontal_down,
+        self,
+        result,
+        result -= 1,
+        result % BOARD_SIZE == 0
+        );
+
+    traverse_board!(
+        traverse_horizontal_up_vertical_up,
+        self,
+        result,
+        result -= BOARD_SIZE - 1,
+        result % BOARD_SIZE == (BOARD_SIZE - 1),
+        result < BOARD_SIZE
+        );
+
+    traverse_board!(
+        traverse_horizontal_down_vertical_up,
+        self,
+        result,
+        result -= BOARD_SIZE + 1,
+        result % BOARD_SIZE == 0,
+        result < BOARD_SIZE
+        );
+
+    traverse_board!(
+        traverse_horizontal_up_vertical_down,
+        self,
+        result,
+        result += BOARD_SIZE + 1,
+        result % BOARD_SIZE == (BOARD_SIZE - 1),
+        result > BOARD_SIZE_SQUARE - BOARD_SIZE
+        );
+
+    traverse_board!(
+        traverse_horizontal_down_vertical_down,
+        self,
+        result,
+        result += BOARD_SIZE - 1,
+        result % BOARD_SIZE == 0,
+        result > BOARD_SIZE_SQUARE - BOARD_SIZE
+        );
+    /*
     fn traverse_vertical_up(
         &self,
         pos: usize,
@@ -529,6 +656,8 @@ impl Board {
         }
         None
     }
+    */
+
 }
 
 #[cfg(test)]
@@ -750,6 +879,45 @@ mod tests {
         );
         let score = board.score();
         assert_eq!(score, (33, 31))
+    }
+
+    #[test]
+    fn test_overflow() {
+        let board = Board::from_string(
+            r#"
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . B W . . .
+            . . B W B . . .
+            . . W . . . . .
+            B W B . . . . .
+            W . . . . . . .
+            "#,
+        );
+
+        let empty: Vec<usize> = vec![];
+        for i in 0..64 {
+            let mut collected: Vec<usize> = vec![];
+            let mut pos =
+                board.get_possibilities_collect_pos(Cell::White, Some(i), Some(&mut collected));
+            pos.sort();
+            assert_eq!(pos, vec![19, 26, 33, 37, 40, 44, 51, 58]);
+            collected.sort();
+            match i {
+                19 => {assert_eq!(collected, vec![19, 27]);},
+                26 => {assert_eq!(collected, vec![26, 27, 34]);},
+                33 => {assert_eq!(collected, vec![33, 34]);},
+                37 => {assert_eq!(collected, vec![36, 37]);},
+                40 => {assert_eq!(collected, vec![40, 48]);},
+                44 => {assert_eq!(collected, vec![36, 44]);},
+                51 => {assert_eq!(collected, vec![50, 51]);},
+                58 => {assert_eq!(collected, vec![50, 58]);},
+                _ => {
+                    assert_eq!(collected, empty);
+                }
+            }
+        }
     }
 
 }
