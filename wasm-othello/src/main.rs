@@ -1,4 +1,7 @@
 #[macro_use]
+extern crate log;
+extern crate web_logger;
+
 extern crate stdweb;
 
 use std::rc::Rc;
@@ -138,7 +141,7 @@ impl Store {
     fn paint(&self, context: &CanvasRenderingContext2d) {
         self.board.paint(self.player, context);
         let score = self.board.score();
-        js! {console.log(@{format!("Black: {} - White: {}", score.0, score.1)})}
+        info!("Black: {} - White: {}", score.0, score.1);
     }
 
     fn play(&mut self, x: usize, y: usize) -> Result<(), ()> {
@@ -149,9 +152,9 @@ impl Store {
         if let Ok(_) = self.board.board.set_cell(x, y, self.player) {
             if self.board.can_play(self.player.opposite()) {
                 self.player = self.player.opposite();
-                js!{ console.log(@{format!("Player {:?} play", self.player)}) }
+                info!("Player {:?} play", self.player);
             } else if !self.board.can_play(self.player) {
-                js!{ console.log(@{format!("Game Over")}) }
+                info!("Game Over");
                 self.game_over = true;
             }
         }
@@ -227,9 +230,9 @@ impl AnimatedCanvas {
 }
 
 fn main() {
-    js! {
-        console.log("Welcome aboard")
-    }
+    web_logger::init();
+    info!("Welcome aboard");
+
     let store = Store::new(60);
     let canvas = Canvas::new("#game", &store);
     let mut ac = AnimatedCanvas::new(store, canvas);

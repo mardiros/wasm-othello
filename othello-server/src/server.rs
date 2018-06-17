@@ -1,97 +1,71 @@
-//! `OthelloServer` is an actor. It maintains list of connection client session.
-//! And manages available rooms. Peers send messages to other peers in same
-//! room through `OthelloServer`.
+//! `OthelloActor` maintains list of connection client session.
 
-use actix::prelude::*;
-use rand::{self, Rng, ThreadRng};
+use std::iter;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-/// Othello server sends this messages to session
-#[derive(Message)]
-pub struct Message(pub String);
+use rand::{self, Rng, ThreadRng};
+use rand::distributions::Alphanumeric;
+use actix::prelude::*;
+
+
+use wscommand::{
+    WsRequest,
+    WsResponse,
+    WsConnectedParam};
 
 /// Message for Othello server communications
 
-/// New Othello session is created
+/// New Othello session is created on connection received
 #[derive(Message)]
-#[rtype(usize)]
+#[rtype(String)]
 pub struct Connect {
-    pub addr: Recipient<Syn, Message>,
+    pub addr: Recipient<Syn, WsResponse>,
 }
 
 /// Session is disconnected
 #[derive(Message)]
 pub struct Disconnect {
-    pub id: usize,
+    pub id: String,
 }
 
-/// Send message to specific room
 #[derive(Message)]
 pub struct ClientMessage {
-    /// Id of the client session
-    pub id: usize,
-    /// Peer message
-    pub msg: String,
-    /// Room name
-    pub room: String,
+    pub id: String,
+    pub request: WsRequest,
 }
 
-/// List of available rooms
-pub struct ListRooms;
 
-impl actix::Message for ListRooms {
-    type Result = Vec<String>;
-}
-
-/// Join room, if room does not exists create new one.
-#[derive(Message)]
-pub struct Join {
-    /// Client id
-    pub id: usize,
-    /// Room name
-    pub name: String,
-}
-
-/// `OthelloServer` manages Othello rooms and responsible for coordinating Othello
-/// session. implementation is super primitive
-pub struct OthelloServer {
-    sessions: HashMap<usize, Recipient<Syn, Message>>,
-    rooms: HashMap<String, HashSet<usize>>,
+pub struct OthelloActor {
+    /// session_id to session address
+    sessions: HashMap<String, Recipient<Syn, WsResponse>>,
     rng: RefCell<ThreadRng>,
 }
 
-impl Default for OthelloServer {
-    fn default() -> OthelloServer {
-        // default room
-        let mut rooms = HashMap::new();
-        rooms.insert("Main".to_owned(), HashSet::new());
+impl Default for OthelloActor {
+    fn default() -> OthelloActor {
 
-        OthelloServer {
+        OthelloActor {
             sessions: HashMap::new(),
-            rooms: rooms,
             rng: RefCell::new(rand::thread_rng()),
         }
     }
 }
 
-impl OthelloServer {
+impl OthelloActor {
     /// Send message to all users in the room
-    fn send_message(&self, room: &str, message: &str, skip_id: usize) {
-        if let Some(sessions) = self.rooms.get(room) {
-            for id in sessions {
-                if *id != skip_id {
-                    if let Some(addr) = self.sessions.get(id) {
-                        let _ = addr.do_send(Message(message.to_owned()));
-                    }
-                }
-            }
+    fn send_message(&self, resp: WsResponse, dest_id: &str) {
+        if let Some(addr) = self.sessions.get(dest_id) {
+            let _ = addr.do_send(resp);
+        }
+        else {
+            warn!("Receive a message to an invalid id");
         }
     }
 }
 
-/// Make actor from `OthelloServer`
-impl Actor for OthelloServer {
+/// Make actor from `OthelloActor`
+impl Actor for OthelloActor {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
     type Context = Context<Self>;
@@ -100,21 +74,17 @@ impl Actor for OthelloServer {
 /// Handler for Connect message.
 ///
 /// Register new session and assign unique id to this session
-impl Handler<Connect> for OthelloServer {
-    type Result = usize;
+impl Handler<Connect> for OthelloActor {
+    type Result = String;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Someone joined");
-
-        // notify all users in same room
-        self.send_message(&"Main".to_owned(), "Someone joined", 0);
 
         // register session with random id
-        let id = self.rng.borrow_mut().gen::<usize>();
-        self.sessions.insert(id, msg.addr);
-
-        // auto join session to Main room
-        self.rooms.get_mut(&"Main".to_owned()).unwrap().insert(id);
+        let id: String = iter::repeat(())
+                .map(|()| self.rng.borrow_mut().sample(Alphanumeric))
+                .take(40)
+                .collect();
+        self.sessions.insert(id.clone(), msg.addr);
 
         // send id back
         id
@@ -122,78 +92,29 @@ impl Handler<Connect> for OthelloServer {
 }
 
 /// Handler for Disconnect message.
-impl Handler<Disconnect> for OthelloServer {
+impl Handler<Disconnect> for OthelloActor {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Someone disconnected");
-
-        let mut rooms: Vec<String> = Vec::new();
-
-        // remove address
         if self.sessions.remove(&msg.id).is_some() {
-            // remove session from all rooms
-            for (name, sessions) in &mut self.rooms {
-                if sessions.remove(&msg.id) {
-                    rooms.push(name.to_owned());
-                }
-            }
-        }
-        // send message to other users
-        for room in rooms {
-            self.send_message(&room, "Someone disconnected", 0);
+            debug!("Session {} closed", msg.id);
         }
     }
 }
 
 /// Handler for Message message.
-impl Handler<ClientMessage> for OthelloServer {
+impl Handler<ClientMessage> for OthelloActor {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.room, msg.msg.as_str(), msg.id);
-    }
-}
-
-/// Handler for `ListRooms` message.
-impl Handler<ListRooms> for OthelloServer {
-    type Result = MessageResult<ListRooms>;
-
-    fn handle(&mut self, _: ListRooms, _: &mut Context<Self>) -> Self::Result {
-        let mut rooms = Vec::new();
-
-        for key in self.rooms.keys() {
-            rooms.push(key.to_owned())
-        }
-
-        MessageResult(rooms)
-    }
-}
-
-/// Join room, send disconnect message to old room
-/// send join message to new room
-impl Handler<Join> for OthelloServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
-        let Join { id, name } = msg;
-        let mut rooms = Vec::new();
-
-        // remove session from all rooms
-        for (n, sessions) in &mut self.rooms {
-            if sessions.remove(&id) {
-                rooms.push(n.to_owned());
+        let req = msg.request;
+        let users_count = self.sessions.len();
+        let resp = WsResponse::ConnectedParam(
+            WsConnectedParam{
+                id: msg.id.clone(),
+                users_count: users_count
             }
-        }
-        // send message to other users
-        for room in rooms {
-            self.send_message(&room, "Someone disconnected", 0);
-        }
-
-        if self.rooms.get_mut(&name).is_none() {
-            self.rooms.insert(name.clone(), HashSet::new());
-        }
-        self.send_message(&name, "Someone connected", id);
-        self.rooms.get_mut(&name).unwrap().insert(id);
+        );
+        self.send_message(resp, msg.id.as_str());
     }
 }

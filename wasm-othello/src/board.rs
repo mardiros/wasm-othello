@@ -3,7 +3,6 @@ use std::collections::HashSet;
 pub const BOARD_SIZE: usize = 8;
 pub const BOARD_SIZE_SQUARE: usize = BOARD_SIZE * BOARD_SIZE;
 
-
 macro_rules! traverse_board {
 
     ($name:ident, $self_:ident, $result:ident,  $step: expr, $( $test:expr ),* )  => {
@@ -60,7 +59,6 @@ macro_rules! traverse_board {
         }
     }
 }
-
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Cell {
@@ -137,7 +135,11 @@ impl Board {
 
     pub fn score(&self) -> (usize, usize) {
         let mut score = (0, 0);
-        self.cells.iter().for_each(|cell| {match cell { &Cell::Black=> score.0 += 1, &Cell::White => score.1 += 1, _ => {}}});
+        self.cells.iter().for_each(|cell| match cell {
+            &Cell::Black => score.0 += 1,
+            &Cell::White => score.1 += 1,
+            _ => {}
+        });
         score
     }
 
@@ -250,7 +252,7 @@ impl Board {
         result,
         result -= BOARD_SIZE,
         result < BOARD_SIZE
-        );
+    );
 
     traverse_board!(
         traverse_vertical_down,
@@ -258,7 +260,7 @@ impl Board {
         result,
         result += BOARD_SIZE,
         result > BOARD_SIZE_SQUARE - BOARD_SIZE
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_up,
@@ -266,7 +268,7 @@ impl Board {
         result,
         result += 1,
         result % BOARD_SIZE == (BOARD_SIZE - 1)
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_down,
@@ -274,7 +276,7 @@ impl Board {
         result,
         result -= 1,
         result % BOARD_SIZE == 0
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_up_vertical_up,
@@ -283,7 +285,7 @@ impl Board {
         result -= BOARD_SIZE - 1,
         result % BOARD_SIZE == (BOARD_SIZE - 1),
         result < BOARD_SIZE
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_down_vertical_up,
@@ -292,7 +294,7 @@ impl Board {
         result -= BOARD_SIZE + 1,
         result % BOARD_SIZE == 0,
         result < BOARD_SIZE
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_up_vertical_down,
@@ -301,7 +303,7 @@ impl Board {
         result += BOARD_SIZE + 1,
         result % BOARD_SIZE == (BOARD_SIZE - 1),
         result > BOARD_SIZE_SQUARE - BOARD_SIZE
-        );
+    );
 
     traverse_board!(
         traverse_horizontal_down_vertical_down,
@@ -310,7 +312,7 @@ impl Board {
         result += BOARD_SIZE - 1,
         result % BOARD_SIZE == 0,
         result > BOARD_SIZE_SQUARE - BOARD_SIZE
-        );
+    );
     /*
     fn traverse_vertical_up(
         &self,
@@ -657,7 +659,6 @@ impl Board {
         None
     }
     */
-
 }
 
 #[cfg(test)]
@@ -905,14 +906,30 @@ mod tests {
             assert_eq!(pos, vec![19, 26, 33, 37, 40, 44, 51, 58]);
             collected.sort();
             match i {
-                19 => {assert_eq!(collected, vec![19, 27]);},
-                26 => {assert_eq!(collected, vec![26, 27, 34]);},
-                33 => {assert_eq!(collected, vec![33, 34]);},
-                37 => {assert_eq!(collected, vec![36, 37]);},
-                40 => {assert_eq!(collected, vec![40, 48]);},
-                44 => {assert_eq!(collected, vec![36, 44]);},
-                51 => {assert_eq!(collected, vec![50, 51]);},
-                58 => {assert_eq!(collected, vec![50, 58]);},
+                19 => {
+                    assert_eq!(collected, vec![19, 27]);
+                }
+                26 => {
+                    assert_eq!(collected, vec![26, 27, 34]);
+                }
+                33 => {
+                    assert_eq!(collected, vec![33, 34]);
+                }
+                37 => {
+                    assert_eq!(collected, vec![36, 37]);
+                }
+                40 => {
+                    assert_eq!(collected, vec![40, 48]);
+                }
+                44 => {
+                    assert_eq!(collected, vec![36, 44]);
+                }
+                51 => {
+                    assert_eq!(collected, vec![50, 51]);
+                }
+                58 => {
+                    assert_eq!(collected, vec![50, 58]);
+                }
                 _ => {
                     assert_eq!(collected, empty);
                 }

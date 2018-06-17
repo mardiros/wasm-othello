@@ -27,9 +27,9 @@ $ cargo +nightly web build
 ```
 
 ## Reference
-
 * https://github.com/koute/cargo-web
 * https://github.com/koute/stdweb
+* https://github.com/DenisKolodin/yew
 * https://developer.mozilla.org/en-US/docs/WebAssembly
 
 ## License
