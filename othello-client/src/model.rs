@@ -81,11 +81,11 @@ impl Cell {
 }
 
 #[derive(Clone)]
-pub struct Board {
+pub struct BoardModel {
     cells: [Cell; BOARD_SIZE_SQUARE],
 }
 
-impl Board {
+impl BoardModel {
     pub fn new() -> Self {
         let mut cells = [Cell::Empty; BOARD_SIZE_SQUARE];
         /*
@@ -106,7 +106,7 @@ impl Board {
         cells[centerc * BOARD_SIZE + centerf] = Cell::White;
         cells[centerc * BOARD_SIZE + centerc] = Cell::Black;
 
-        Board { cells }
+        BoardModel { cells }
     }
 
     #[cfg(test)]
@@ -121,7 +121,7 @@ impl Board {
                 _ => {}
             }
         }
-        Board { cells }
+        BoardModel { cells }
     }
 
     pub fn cell(&self, x: usize, y: usize) -> &Cell {
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_diag() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . . . . . . .
             . W . . . . W .
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_horizontal_vertical() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . . . . . . .
             . . W . . W . .
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_diag_splitted() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             B . . . . . . .
             . W . . . . . .
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_diag_splitted2() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . . . . . . .
             . W . . . . . .
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_diag_splitted3() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . . . . . . .
             . . . . . . W .
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_possibilities_many_directions() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . B . . . . .
             . . W . . . . .
@@ -520,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_score() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             W B B B B B B B
             W W W B B B B B
@@ -538,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_overflow() {
-        let board = Board::from_string(
+        let board = BoardModel::from_string(
             r#"
             . . . . . . . .
             . . . . . . . .

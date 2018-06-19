@@ -16,10 +16,16 @@ extern crate yew;
 use failure::Error;
 
 use yew::prelude::*;
-use yew::services::console::ConsoleService;
 use yew::services::Task;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 use yew::format::Json;
+
+mod context;
+mod board;
+mod model;
+
+use context::Context;
+use board::Board;
 
 /// This type is an expected response from a websocket connection.
 #[derive(Serialize, Debug)]
@@ -28,23 +34,44 @@ pub struct WsConnectingParam<'a> {
 }
 
 #[derive(Serialize, Debug)]
-pub enum WsRequest<'a> {
-    ConnectingParam(WsConnectingParam<'a>)
+pub struct WsJoinBoard<'a> {
+    session_id: &'a str,
 }
 
+#[derive(Serialize, Debug)]
+pub enum WsRequest<'a> {
+    ConnectingParam(WsConnectingParam<'a>),
+    JoinBoard(WsJoinBoard<'a>),
+}
 
 #[derive(Deserialize, Debug)]
 pub struct WsConnectedParam {
-    // a session id
-    // pub id: usize,
+    /// a session id
+    pub id: String,
+    /// the number of users that are connected to the game
     pub users_count: usize,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub enum Color {
+    Black,
+    White,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WsJoinedBoard {
+    /// a board_id to reuse while playing
+    pub id: String,
+    /// the color where the user play
+    pub color: Color,
+}
 
 #[derive(Deserialize, Debug)]
 pub enum WsResponse {
-    /// `connect` command parameters
-    ConnectedParam(WsConnectedParam)
+    /// `connected` response parameters
+    ConnectedParam(WsConnectedParam),
+    /// `join board` command parameters
+    JoinedBoard(WsJoinedBoard),
 }
 
 pub enum WsAction {
@@ -64,7 +91,7 @@ pub enum ConnectionStatus {
     /// The useer is not connected
     Disconnected,
     /// The user trying to connect
-    Connecting(String),
+    Connecting,
     /// The user is successfully connected
     Connected(String),
     /// The user try to connect but there is an issue
@@ -73,9 +100,14 @@ pub enum ConnectionStatus {
 
 pub struct AppModel {
     connected: ConnectionStatus,
-    input_value: String,
+    users_count: usize,
+    username: String,
+
+    board_id: String,
+    color: Option<Color>,
     ws: Option<WebSocketTask>,
-    wsdata: Option<WsResponse>,
+
+    username_input: String,
 }
 
 pub enum Msg {
@@ -85,6 +117,9 @@ pub enum Msg {
     GotInput(String),
     WsAction(WsAction),
     WsReady(Result<WsResponse, Error>),
+
+    JoinBoard(()),
+    BoardCellClicked((usize, usize)),
 }
 
 impl Component<Context> for AppModel {
@@ -94,9 +129,14 @@ impl Component<Context> for AppModel {
     fn create(_: Self::Properties, _: &mut Env<Context, Self>) -> Self {
         AppModel {
             connected: ConnectionStatus::Disconnected,
-            input_value: "".to_string(),
+            username: "".to_string(),
+
+            board_id: "".to_string(),
+            color: None,
+
+            users_count: 0,
+            username_input: "".to_string(),
             ws: None,
-            wsdata: None,
         }
     }
 
@@ -112,7 +152,8 @@ impl Component<Context> for AppModel {
                 let task = ws_service.connect("ws://[::1]:8080/ws/", callback, notification);
                 self.ws = Some(task);
 
-                self.connected = ConnectionStatus::Connecting(self.input_value.clone());
+                self.connected = ConnectionStatus::Connecting;
+                self.username = self.username_input.clone();
                 info!("disconnect");
             }
             Msg::Disconnecting => {
@@ -120,13 +161,13 @@ impl Component<Context> for AppModel {
                 info!("disconnected");
             }
             Msg::GotInput(value) => {
-                self.input_value = value;
+                self.username_input = value;
             }
 
             Msg::WsAction(action) => match action {
                 WsAction::SendUser => {
                     let payload = WsConnectingParam {
-                        nickname: self.input_value.as_str(),
+                        nickname: self.username_input.as_str(),
                     };
                     let command = WsRequest::ConnectingParam(payload);
                     self.ws.as_mut().unwrap().send(Json(&command));
@@ -145,11 +186,35 @@ impl Component<Context> for AppModel {
             Msg::WsReady(response) => {
                 if let Err(err) = response {
                     error!("{}", err);
-                    return false
+                    return false;
                 }
                 let response = response.unwrap();
-                self.wsdata = Some(response);
-                self.connected = ConnectionStatus::Connected(self.input_value.clone());
+                info!("{:?}", response);
+                match response {
+                    WsResponse::ConnectedParam(ref params) => {
+                        let session_id = params.id.clone();
+                        self.users_count = params.users_count;
+                        self.connected = ConnectionStatus::Connected(session_id);
+                    }
+                    WsResponse::JoinedBoard(ref param) => {
+                        self.board_id = param.id.clone();
+                        self.color = Some(param.color.clone())
+                    }
+                }
+            }
+
+            Msg::JoinBoard(()) => {
+                info!("Join board");
+                if let ConnectionStatus::Connected(ref session_id) = self.connected {
+                    let payload = WsJoinBoard {
+                        session_id: session_id.as_str(),
+                    };
+                    let command = WsRequest::JoinBoard(payload);
+                    self.ws.as_mut().unwrap().send(Json(&command));
+                }
+            }
+            Msg::BoardCellClicked((x, y)) => {
+                info!("User play {} {}", x, y);
             }
             Msg::Ignore => info!("Received an ignored message"),
         }
@@ -162,6 +227,8 @@ impl Renderable<Context, AppModel> for AppModel {
         html! {
             <div id="main",>
                 { self.view_connection_button() }
+                <br/>
+                { self.view_board() }
             </div>
         }
     }
@@ -170,15 +237,20 @@ impl Renderable<Context, AppModel> for AppModel {
 impl AppModel {
     fn view_connection_button(&self) -> Html<Context, Self> {
         match self.connected {
-            ConnectionStatus::Connected(ref username) => {
-                html!{
-                    <button onclick=|_| Msg::Disconnecting.into(),>{ format!("Disconnect {}", username) }</button>
-                }
-            }
-            ConnectionStatus::Connecting(ref username) => {
+            ConnectionStatus::Connected(_) => {
                 html!{
                     <span>
-                        { format!("Connecting {}...", username) }
+                        { format!("{} user(s) online", self.users_count) }
+                    </span>
+                    <button onclick=|_| Msg::Disconnecting.into(),>
+                        { format!("Disconnect {}", self.username) }
+                    </button>
+                }
+            }
+            ConnectionStatus::Connecting => {
+                html!{
+                    <span>
+                        { format!("Connecting {}...", self.username) }
                     </span>
                 }
             }
@@ -187,7 +259,7 @@ impl AppModel {
                     <>
                     <input class="edit",
                         type="text",
-                        value=&self.input_value,
+                        value=&self.username_input,
                         oninput=|e| Msg::GotInput(e.value),
                         />
                     <button onclick=|_| Msg::Connecting.into(),>{ "Connect" }</button>
@@ -200,7 +272,7 @@ impl AppModel {
                     <>
                     <input class="edit",
                         type="text",
-                        value=&self.input_value,
+                        value=&self.username_input,
                         oninput=|e| Msg::GotInput(e.value),
                         />
                     <button onclick=|_| Msg::Connecting.into(),>{ "Connect" }</button>
@@ -209,32 +281,28 @@ impl AppModel {
             }
         }
     }
-}
 
-pub struct Context {
-    console: ConsoleService,
-    ws: WebSocketService,
-}
-
-impl AsMut<ConsoleService> for Context {
-    fn as_mut(&mut self) -> &mut ConsoleService {
-        &mut self.console
-    }
-}
-
-impl AsMut<WebSocketService> for Context {
-    fn as_mut(&mut self) -> &mut WebSocketService {
-        &mut self.ws
+    fn view_board(&self) -> Html<Context, Self> {
+        match self.connected {
+            ConnectionStatus::Connected(ref session_id) => {
+                html!{
+                    <Board: onstart=Msg::JoinBoard, onclick=Msg::BoardCellClicked, />
+                }
+            }
+            _ => {
+                html!{
+                    <>
+                    </>
+                }
+            }
+        }
     }
 }
 
 fn main() {
     web_logger::init();
     yew::initialize();
-    let context = Context {
-        console: ConsoleService::new(),
-        ws: WebSocketService::new(),
-    };
+    let context = Context::new();
     let app: App<_, AppModel> = App::new(context);
     app.mount_to_body();
     yew::run_loop();

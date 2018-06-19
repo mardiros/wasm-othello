@@ -8,11 +8,7 @@ use rand::{self, Rng, ThreadRng};
 use rand::distributions::Alphanumeric;
 use actix::prelude::*;
 
-
-use wscommand::{
-    WsRequest,
-    WsResponse,
-    WsConnectedParam};
+use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsRequest, WsResponse};
 
 /// Message for Othello server communications
 
@@ -35,18 +31,31 @@ pub struct ClientMessage {
     pub request: WsRequest,
 }
 
+pub struct SessionData {
+    // where the user is joinable
+    addr: Recipient<Syn, WsResponse>,
+    // the nickname received in the ConnectionParam
+    nickname: Option<String>,
+    // a board where the user is actually
+    board: Option<String>,
+}
 
 pub struct OthelloActor {
     /// session_id to session address
-    sessions: HashMap<String, Recipient<Syn, WsResponse>>,
+    sessions: HashMap<String, SessionData>,
+    /// boards (black session_id, white session_id or empty string)
+    boards: HashMap<String, (String, String)>,
+    /// the list of boards waiting for a partner
+    boarding: Vec<String>,
     rng: RefCell<ThreadRng>,
 }
 
 impl Default for OthelloActor {
     fn default() -> OthelloActor {
-
         OthelloActor {
             sessions: HashMap::new(),
+            boards: HashMap::new(),
+            boarding: Vec::new(),
             rng: RefCell::new(rand::thread_rng()),
         }
     }
@@ -55,10 +64,9 @@ impl Default for OthelloActor {
 impl OthelloActor {
     /// Send message to all users in the room
     fn send_message(&self, resp: WsResponse, dest_id: &str) {
-        if let Some(addr) = self.sessions.get(dest_id) {
-            let _ = addr.do_send(resp);
-        }
-        else {
+        if let Some(ref sess) = self.sessions.get(dest_id) {
+            let _ = sess.addr.do_send(resp);
+        } else {
             warn!("Receive a message to an invalid id");
         }
     }
@@ -78,13 +86,19 @@ impl Handler<Connect> for OthelloActor {
     type Result = String;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-
         // register session with random id
         let id: String = iter::repeat(())
-                .map(|()| self.rng.borrow_mut().sample(Alphanumeric))
-                .take(40)
-                .collect();
-        self.sessions.insert(id.clone(), msg.addr);
+            .map(|()| self.rng.borrow_mut().sample(Alphanumeric))
+            .take(40)
+            .collect();
+        self.sessions.insert(
+            id.clone(),
+            SessionData {
+                addr: msg.addr,
+                nickname: None,
+                board: None,
+            },
+        );
 
         // send id back
         id
@@ -96,25 +110,73 @@ impl Handler<Disconnect> for OthelloActor {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
+        // cleaning boarding
+        // TODO
+        // cleaning boards
+        // TODO
+
         if self.sessions.remove(&msg.id).is_some() {
             debug!("Session {} closed", msg.id);
         }
     }
 }
 
-/// Handler for Message message.
+/// Handler for message from the websocket.
 impl Handler<ClientMessage> for OthelloActor {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
         let req = msg.request;
-        let users_count = self.sessions.len();
-        let resp = WsResponse::ConnectedParam(
-            WsConnectedParam{
-                id: msg.id.clone(),
-                users_count: users_count
+        let resp = {
+            match req {
+                WsRequest::ConnectingParam(ref param) => {
+                    let users_count = { self.sessions.len() };
+                    let session = self.sessions.get_mut(&msg.id);
+                    if session.is_none() {
+                        error!("Receiving an invalid session id {}", msg.id);
+                        return;
+                    }
+                    let session = session.unwrap();
+                    session.nickname = Some(param.nickname.clone());
+                    let resp = WsResponse::ConnectedParam(WsConnectedParam {
+                        id: msg.id.clone(),
+                        users_count: users_count,
+                    });
+                    Some(resp)
+                }
+                WsRequest::JoinBoard(ref param) => {
+                    info!("Boarding: {:?}", self.boarding);
+                    let joined = if self.boarding.len() > 0 {
+                        // join the board as a white player
+                        let board_id = self.boarding.remove(0);
+                        let board = self.boards.get_mut(&board_id);
+                        if let Some(brd) = board {
+                            brd.1 = param.session_id.clone();
+                        }
+                        WsJoinedBoard {
+                            id: board_id,
+                            color: Color::White,
+                        }
+                    } else {
+                        // create the board and join it as a black player
+                        let board_id: String = iter::repeat(())
+                            .map(|()| self.rng.borrow_mut().sample(Alphanumeric))
+                            .take(12)
+                            .collect();
+                        self.boards
+                            .insert(board_id.clone(), (param.session_id.clone(), "".to_owned()));
+                        self.boarding.push(board_id.clone());
+                        WsJoinedBoard {
+                            id: board_id,
+                            color: Color::Black,
+                        }
+                    };
+                    Some(WsResponse::JoinedBoard(joined))
+                }
             }
-        );
-        self.send_message(resp, msg.id.as_str());
+        };
+        if let Some(r) = resp {
+            self.send_message(r, msg.id.as_str());
+        }
     }
 }

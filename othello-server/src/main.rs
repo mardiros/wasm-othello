@@ -89,7 +89,9 @@ impl Actor for WsOthelloSession {
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
         // notify chat server
-        ctx.state().addr.do_send(server::Disconnect { id: self.id.clone() });
+        ctx.state().addr.do_send(server::Disconnect {
+            id: self.id.clone(),
+        });
         Running::Stop
     }
 }
@@ -111,10 +113,10 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsOthelloSession {
                 self.hb = Instant::now()
             }
             ws::Message::Text(text) => {
-                let req: Result<WsRequest,_> = serde_json::from_str(text.as_str());
+                let req: Result<WsRequest, _> = serde_json::from_str(text.as_str());
                 if req.is_err() {
                     ctx.stop();
-                    return
+                    return;
                 }
                 let req = req.unwrap();
                 ctx.state().addr.do_send(server::ClientMessage {
@@ -133,7 +135,6 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsOthelloSession {
     }
 }
 
-
 /// Send the websocket Response to the peer websocket
 impl Handler<WsResponse> for WsOthelloSession {
     type Result = ();
@@ -144,7 +145,6 @@ impl Handler<WsResponse> for WsOthelloSession {
         ctx.text(resp);
     }
 }
-
 
 fn main() {
     let _ = pretty_env_logger::init();
