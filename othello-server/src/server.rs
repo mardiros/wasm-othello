@@ -8,7 +8,8 @@ use rand::{self, Rng, ThreadRng};
 use rand::distributions::Alphanumeric;
 use actix::prelude::*;
 
-use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsRequest, WsResponse};
+use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsOpponentJoinedBoard, WsRequest,
+                WsResponse};
 
 /// Message for Othello server communications
 
@@ -150,12 +151,45 @@ impl Handler<ClientMessage> for OthelloActor {
                         // join the board as a white player
                         let board_id = self.boarding.remove(0);
                         let board = self.boards.get_mut(&board_id);
-                        if let Some(brd) = board {
+                        let opponent = if let Some(brd) = board {
+                            let opponent_sess = self.sessions.get(&brd.0);
                             brd.1 = param.session_id.clone();
-                        }
+                            if let Some(ref opp_sess) = opponent_sess {
+                                if let Some(ref name) = opp_sess.nickname {
+                                    // notify the first user of the board he can play
+                                    let self_sess = self.sessions.get(&param.session_id);
+                                    let self_nick =
+                                        self_sess.unwrap().nickname.as_ref().unwrap().as_str();
+                                    let back =
+                                        WsResponse::OpponentJoinedBoard(WsOpponentJoinedBoard {
+                                            id: board_id.clone(),
+                                            opponent: self_nick.to_string(),
+                                        });
+                                    info!("Sending back message");
+                                    let _ = opp_sess.addr.do_send(back);
+
+                                    Some(name.to_owned())
+                                } else {
+                                    error!("A user cannot join a board without a nick");
+                                    None
+                                }
+                            } else {
+                                error!(
+                                    "No session on white user, the board should have been cleeaned"
+                                );
+                                None
+                            }
+                        } else {
+                            error!(
+                                "Invalid board id {} retrieved in the boarding queue",
+                                board_id
+                            );
+                            None
+                        };
                         WsJoinedBoard {
                             id: board_id,
                             color: Color::White,
+                            opponent: opponent,
                         }
                     } else {
                         // create the board and join it as a black player
@@ -169,6 +203,7 @@ impl Handler<ClientMessage> for OthelloActor {
                         WsJoinedBoard {
                             id: board_id,
                             color: Color::Black,
+                            opponent: None,
                         }
                     };
                     Some(WsResponse::JoinedBoard(joined))

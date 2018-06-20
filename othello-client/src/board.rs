@@ -7,9 +7,9 @@ use std::f64::consts::PI;
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, CanvasRenderingContext2d, EventListenerHandle, FillRule};
+use stdweb::web::{document, CanvasRenderingContext2d, FillRule};
 
-use stdweb::web::event::{ClickEvent, ConcreteEvent};
+use stdweb::web::event::ClickEvent;
 
 use super::context::Context;
 
@@ -181,14 +181,6 @@ impl Canvas {
     fn context(&self) -> CanvasRenderingContext2d {
         self.canvas.get_context().unwrap()
     }
-
-    fn add_event_listener<T, F>(&self, listener: F) -> EventListenerHandle
-    where
-        T: ConcreteEvent,
-        F: FnMut(T) + 'static,
-    {
-        self.canvas.add_event_listener(listener)
-    }
 }
 
 pub struct Board {
@@ -196,12 +188,14 @@ pub struct Board {
     store: Rc<RefCell<Store>>,
 
     started: bool,
+    opponent: Option<String>,
     onstart: Option<Callback<()>>,
     onclick: Option<Callback<(usize, usize)>>,
 }
 
 #[derive(PartialEq, Clone)]
 pub struct Props {
+    pub opponent: Option<String>,
     pub onstart: Option<Callback<()>>,
     pub onclick: Option<Callback<(usize, usize)>>,
 }
@@ -209,6 +203,7 @@ pub struct Props {
 impl Default for Props {
     fn default() -> Self {
         Props {
+            opponent: None,
             onstart: None,
             onclick: None,
         }
@@ -216,21 +211,6 @@ impl Default for Props {
 }
 
 impl Board {
-    fn new(
-        store: Store,
-        canvas: Option<Canvas>,
-        onstart: Option<Callback<()>>,
-        onclick: Option<Callback<(usize, usize)>>,
-    ) -> Self {
-        let store_rc = Rc::new(RefCell::new(store));
-        Board {
-            canvas: canvas,
-            store: store_rc,
-            onstart: onstart,
-            onclick: onclick,
-            started: false,
-        }
-    }
     fn paint(&mut self) {
         if let Some(ref canvas) = self.canvas {
             let context = canvas.context();
@@ -258,6 +238,26 @@ impl Board {
             }
         }
     }
+    fn view_player_score(&self) -> Html<Context, Self> {
+        if !self.started {
+            return html!{
+                <>
+                </>
+            };
+        }
+        match self.opponent {
+            Some(ref nick) => {
+                html!{
+                    <p>{"Opponent "}  { nick }</p>
+                }
+            }
+            None => {
+                html!{
+                    <p> { "Waiting for opponent player" } </p>
+                }
+            }
+        }
+    }
 }
 
 pub enum Msg {
@@ -272,7 +272,15 @@ impl Component<Context> for Board {
     fn create(props: Self::Properties, env: &mut Env<Context, Self>) -> Self {
         info!("Creating the board");
         let store = Store::new(60);
-        Board::new(store, None, props.onstart, props.onclick)
+        let store_rc = Rc::new(RefCell::new(store));
+        Board {
+            canvas: None,
+            store: store_rc,
+            opponent: props.opponent,
+            onstart: props.onstart,
+            onclick: props.onclick,
+            started: false,
+        }
     }
 
     fn update(&mut self, msg: Self::Message, _: &mut Env<Context, Self>) -> ShouldRender {
@@ -290,6 +298,9 @@ impl Component<Context> for Board {
                 self.started = true;
             }
             Msg::Clicked(ref event) => {
+                if self.opponent == None {
+                    return false;
+                }
                 let mut store = self.store.borrow_mut();
                 let x = (event.offset_x() / store.cell_width() as f64) as usize;
                 let y = (event.offset_y() / store.cell_width() as f64) as usize;
@@ -306,7 +317,7 @@ impl Component<Context> for Board {
     }
 
     fn change(&mut self, props: Self::Properties, _: &mut Env<Context, Self>) -> ShouldRender {
-        self.onclick = props.onclick;
+        self.opponent = props.opponent;
         true
     }
 }
@@ -320,6 +331,7 @@ impl Renderable<Context, Board> for Board {
                     id="game",
                     onclick=|event|Msg::Clicked(event),
                     ></canvas>
+                { self.view_player_score() }
             </div>
         }
     }

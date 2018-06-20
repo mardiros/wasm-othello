@@ -49,6 +49,17 @@ pub struct WsJoinedBoard {
     pub id: String,
     /// the user color
     pub color: Color,
+    /// the nick of the opponnent user
+    pub opponent: Option<String>,
+}
+
+/// Connected parameter
+#[derive(Serialize, Debug)]
+pub struct WsOpponentJoinedBoard {
+    /// a board id
+    pub id: String,
+    /// the nick of the opponnent user
+    pub opponent: String,
 }
 
 /// This type handle type per command
@@ -57,4 +68,5 @@ pub enum WsResponse {
     /// `connect` command parameters
     ConnectedParam(WsConnectedParam),
     JoinedBoard(WsJoinedBoard),
+    OpponentJoinedBoard(WsOpponentJoinedBoard),
 }

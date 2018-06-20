@@ -64,6 +64,16 @@ pub struct WsJoinedBoard {
     pub id: String,
     /// the color where the user play
     pub color: Color,
+    // the nickname received in the ConnectionParam
+    pub opponent: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WsOpponentJoinedBoard {
+    /// a board_id to reuse while playing
+    pub id: String,
+    // the nickname received in the ConnectionParam
+    pub opponent: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -72,6 +82,8 @@ pub enum WsResponse {
     ConnectedParam(WsConnectedParam),
     /// `join board` command parameters
     JoinedBoard(WsJoinedBoard),
+    /// when the opponent join the board someone created
+    OpponentJoinedBoard(WsOpponentJoinedBoard),
 }
 
 pub enum WsAction {
@@ -104,6 +116,7 @@ pub struct AppModel {
     username: String,
 
     board_id: String,
+    opponent: Option<String>,
     color: Option<Color>,
     ws: Option<WebSocketTask>,
 
@@ -132,6 +145,7 @@ impl Component<Context> for AppModel {
             username: "".to_string(),
 
             board_id: "".to_string(),
+            opponent: None,
             color: None,
 
             users_count: 0,
@@ -198,7 +212,13 @@ impl Component<Context> for AppModel {
                     }
                     WsResponse::JoinedBoard(ref param) => {
                         self.board_id = param.id.clone();
-                        self.color = Some(param.color.clone())
+                        self.color = Some(param.color.clone());
+                        self.opponent = param.opponent.clone();
+                    }
+                    WsResponse::OpponentJoinedBoard(ref param) => {
+                        if param.id == self.board_id {
+                            self.opponent = Some(param.opponent.clone());
+                        }
                     }
                 }
             }
@@ -286,7 +306,7 @@ impl AppModel {
         match self.connected {
             ConnectionStatus::Connected(ref session_id) => {
                 html!{
-                    <Board: onstart=Msg::JoinBoard, onclick=Msg::BoardCellClicked, />
+                    <Board: onstart=Msg::JoinBoard, onclick=Msg::BoardCellClicked, opponent=&self.opponent, />
                 }
             }
             _ => {
