@@ -8,8 +8,8 @@ use rand::{self, Rng, ThreadRng};
 use rand::distributions::Alphanumeric;
 use actix::prelude::*;
 
-use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsOpponentJoinedBoard, WsRequest,
-                WsResponse};
+use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsOpponentJoinedBoard, WsPlayBoard,
+                WsRequest, WsResponse};
 
 /// Message for Othello server communications
 
@@ -207,6 +207,59 @@ impl Handler<ClientMessage> for OthelloActor {
                         }
                     };
                     Some(WsResponse::JoinedBoard(joined))
+                }
+                WsRequest::PlayBoard(ref param) => {
+                    let sess_id = param.session_id.as_str();
+                    let board = self.boards.get(&param.board_id);
+                    if let Some(ref brd) = board {
+                        let opponent_msg = if brd.0.as_str() == sess_id {
+                            // black played, send the move to the white
+                            let opponent_sess = self.sessions.get(&brd.1);
+                            if let Some(ref opp_sess) = opponent_sess {
+                                Some((
+                                    &opp_sess.addr,
+                                    WsResponse::PlayedBoard(WsPlayBoard {
+                                        session_id: brd.1.clone(),
+                                        board_id: param.board_id.clone(),
+                                        pos: param.pos.clone(),
+                                    }),
+                                ))
+                            } else {
+                                // Should not happen
+                                // the session is in error, should drop the board
+                                None
+                            }
+                        } else if brd.1.as_str() == sess_id {
+                            // white played, send the move to the black
+                            let opponent_sess = self.sessions.get(&brd.0);
+                            if let Some(ref opp_sess) = opponent_sess {
+                                Some((
+                                    &opp_sess.addr,
+                                    WsResponse::PlayedBoard(WsPlayBoard {
+                                        session_id: brd.0.clone(),
+                                        board_id: param.board_id.clone(),
+                                        pos: param.pos.clone(),
+                                    }),
+                                ))
+                            } else {
+                                // Should not happen
+                                // the session is in error, should drop the board
+                                None
+                            }
+                        } else {
+                            // Should not happen
+                            // DROP THE BOARD
+                            // Send End Board to players
+                            None
+                        };
+                        if let Some((addr, msg)) = opponent_msg {
+                            info!("Forwarding the move");
+                            let _ = addr.do_send(msg);
+                        }
+                        None
+                    } else {
+                        None
+                    }
                 }
             }
         };

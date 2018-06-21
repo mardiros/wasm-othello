@@ -13,7 +13,8 @@ use stdweb::web::event::ClickEvent;
 
 use super::context::Context;
 
-pub use model::{BoardModel, Cell, BOARD_SIZE};
+use model::{BoardModel, Cell, BOARD_SIZE};
+use wscommand::Color;
 
 pub struct BoardUI {
     board: BoardModel,
@@ -88,7 +89,9 @@ impl BoardUI {
                 }
             }
         }
-
+        if player == Cell::Empty {
+            return;
+        }
         for pos in self.board.get_possibilities(player) {
             let width = self.cell_width - self.margin_width * 2.;
             let posx = (pos as f64 % BOARD_SIZE as f64).floor() * self.cell_width;
@@ -112,7 +115,8 @@ impl BoardUI {
 
 pub struct Store {
     board: BoardUI,
-    player: Cell,
+    current_player: Cell,
+    local_player: Cell,
     game_over: bool,
     cell_width: u32,
 }
@@ -125,7 +129,8 @@ impl Store {
             board,
             cell_width,
             game_over: false,
-            player: Cell::Black,
+            current_player: Cell::Black,
+            local_player: Cell::Empty, // will be ellected
         }
     }
 
@@ -134,7 +139,12 @@ impl Store {
     }
 
     fn paint(&self, context: &CanvasRenderingContext2d) {
-        self.board.paint(self.player, context);
+        let player = if self.local_player == self.current_player {
+            self.local_player
+        } else {
+            Cell::Empty
+        };
+        self.board.paint(player, context);
         let score = self.board.score();
         info!("Black: {} - White: {}", score.0, score.1);
     }
@@ -144,11 +154,11 @@ impl Store {
             // prevent outside of the grid click
             return Err(());
         }
-        if let Ok(_) = self.board.board.set_cell(x, y, self.player) {
-            if self.board.can_play(self.player.opposite()) {
-                self.player = self.player.opposite();
-                info!("Player {:?} play", self.player);
-            } else if !self.board.can_play(self.player) {
+        if let Ok(_) = self.board.board.set_cell(x, y, self.current_player) {
+            if self.board.can_play(self.current_player.opposite()) {
+                self.current_player = self.current_player.opposite();
+                info!("Player {:?} play", self.current_player);
+            } else if !self.board.can_play(self.current_player) {
                 info!("Game Over");
                 self.game_over = true;
             }
@@ -188,6 +198,7 @@ pub struct Board {
     store: Rc<RefCell<Store>>,
 
     started: bool,
+    nickname: String,
     opponent: Option<String>,
     onstart: Option<Callback<()>>,
     onclick: Option<Callback<(usize, usize)>>,
@@ -195,7 +206,10 @@ pub struct Board {
 
 #[derive(PartialEq, Clone)]
 pub struct Props {
+    pub color: Option<Color>,
+    pub nickname: String,
     pub opponent: Option<String>,
+    pub opponent_move: Option<(usize, usize)>,
     pub onstart: Option<Callback<()>>,
     pub onclick: Option<Callback<(usize, usize)>>,
 }
@@ -203,7 +217,10 @@ pub struct Props {
 impl Default for Props {
     fn default() -> Self {
         Props {
+            nickname: "".to_string(),
             opponent: None,
+            opponent_move: None,
+            color: None,
             onstart: None,
             onclick: None,
         }
@@ -269,13 +286,14 @@ impl Component<Context> for Board {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, env: &mut Env<Context, Self>) -> Self {
+    fn create(props: Self::Properties, _env: &mut Env<Context, Self>) -> Self {
         info!("Creating the board");
         let store = Store::new(60);
         let store_rc = Rc::new(RefCell::new(store));
         Board {
             canvas: None,
             store: store_rc,
+            nickname: props.nickname,
             opponent: props.opponent,
             onstart: props.onstart,
             onclick: props.onclick,
@@ -302,6 +320,11 @@ impl Component<Context> for Board {
                     return false;
                 }
                 let mut store = self.store.borrow_mut();
+                // only the play who play should count
+                if store.current_player != store.local_player {
+                    return false;
+                }
+
                 let x = (event.offset_x() / store.cell_width() as f64) as usize;
                 let y = (event.offset_y() / store.cell_width() as f64) as usize;
                 if let Ok(_) = store.play(x, y) {
@@ -318,6 +341,29 @@ impl Component<Context> for Board {
 
     fn change(&mut self, props: Self::Properties, _: &mut Env<Context, Self>) -> ShouldRender {
         self.opponent = props.opponent;
+        self.nickname = props.nickname;
+
+        if let Some(color) = props.color {
+            let mut store = self.store.borrow_mut();
+            match color {
+                Color::White => {
+                    store.local_player = Cell::White;
+                }
+                Color::Black => {
+                    store.local_player = Cell::Black;
+                }
+            }
+            let context = self.canvas_context();
+            store.paint(&context);
+        }
+
+        if let Some((x, y)) = props.opponent_move {
+            let mut store = self.store.borrow_mut();
+            if let Ok(_) = store.play(x, y) {
+                let context = self.canvas_context();
+                store.paint(&context);
+            }
+        }
         true
     }
 }

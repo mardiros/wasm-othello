@@ -16,12 +16,24 @@ pub struct WsJoinBoard {
     pub session_id: String,
 }
 
+/// User is sending a move
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WsPlayBoard {
+    /// a board id
+    pub session_id: String,
+    /// a board id
+    pub board_id: String,
+    /// a position
+    pub pos: (usize, usize),
+}
+
 /// This type handle type per command
 #[derive(Deserialize, Debug)]
 pub enum WsRequest {
     /// `connect` command parameters
     ConnectingParam(WsConnectingParam),
     JoinBoard(WsJoinBoard),
+    PlayBoard(WsPlayBoard),
 }
 
 ///
@@ -69,4 +81,5 @@ pub enum WsResponse {
     ConnectedParam(WsConnectedParam),
     JoinedBoard(WsJoinedBoard),
     OpponentJoinedBoard(WsOpponentJoinedBoard),
+    PlayedBoard(WsPlayBoard),
 }

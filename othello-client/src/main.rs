@@ -23,68 +23,12 @@ use yew::format::Json;
 mod context;
 mod board;
 mod model;
+mod wscommand;
 
 use context::Context;
 use board::Board;
 
-/// This type is an expected response from a websocket connection.
-#[derive(Serialize, Debug)]
-pub struct WsConnectingParam<'a> {
-    nickname: &'a str,
-}
-
-#[derive(Serialize, Debug)]
-pub struct WsJoinBoard<'a> {
-    session_id: &'a str,
-}
-
-#[derive(Serialize, Debug)]
-pub enum WsRequest<'a> {
-    ConnectingParam(WsConnectingParam<'a>),
-    JoinBoard(WsJoinBoard<'a>),
-}
-
-#[derive(Deserialize, Debug)]
-pub struct WsConnectedParam {
-    /// a session id
-    pub id: String,
-    /// the number of users that are connected to the game
-    pub users_count: usize,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub enum Color {
-    Black,
-    White,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct WsJoinedBoard {
-    /// a board_id to reuse while playing
-    pub id: String,
-    /// the color where the user play
-    pub color: Color,
-    // the nickname received in the ConnectionParam
-    pub opponent: Option<String>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct WsOpponentJoinedBoard {
-    /// a board_id to reuse while playing
-    pub id: String,
-    // the nickname received in the ConnectionParam
-    pub opponent: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub enum WsResponse {
-    /// `connected` response parameters
-    ConnectedParam(WsConnectedParam),
-    /// `join board` command parameters
-    JoinedBoard(WsJoinedBoard),
-    /// when the opponent join the board someone created
-    OpponentJoinedBoard(WsOpponentJoinedBoard),
-}
+use wscommand::{Color, WsConnectingParam, WsJoinBoard, WsPlayBoard, WsRequest, WsResponse};
 
 pub enum WsAction {
     SendUser,
@@ -113,14 +57,15 @@ pub enum ConnectionStatus {
 pub struct AppModel {
     connected: ConnectionStatus,
     users_count: usize,
-    username: String,
+    nickname: String,
 
     board_id: String,
     opponent: Option<String>,
+    opponent_move: Option<(usize, usize)>,
     color: Option<Color>,
     ws: Option<WebSocketTask>,
 
-    username_input: String,
+    nickname_input: String,
 }
 
 pub enum Msg {
@@ -142,14 +87,15 @@ impl Component<Context> for AppModel {
     fn create(_: Self::Properties, _: &mut Env<Context, Self>) -> Self {
         AppModel {
             connected: ConnectionStatus::Disconnected,
-            username: "".to_string(),
+            nickname: "".to_string(),
 
             board_id: "".to_string(),
             opponent: None,
+            opponent_move: None,
             color: None,
 
             users_count: 0,
-            username_input: "".to_string(),
+            nickname_input: "".to_string(),
             ws: None,
         }
     }
@@ -167,7 +113,7 @@ impl Component<Context> for AppModel {
                 self.ws = Some(task);
 
                 self.connected = ConnectionStatus::Connecting;
-                self.username = self.username_input.clone();
+                self.nickname = self.nickname_input.clone();
                 info!("disconnect");
             }
             Msg::Disconnecting => {
@@ -175,13 +121,13 @@ impl Component<Context> for AppModel {
                 info!("disconnected");
             }
             Msg::GotInput(value) => {
-                self.username_input = value;
+                self.nickname_input = value;
             }
 
             Msg::WsAction(action) => match action {
                 WsAction::SendUser => {
                     let payload = WsConnectingParam {
-                        nickname: self.username_input.as_str(),
+                        nickname: self.nickname_input.as_str(),
                     };
                     let command = WsRequest::ConnectingParam(payload);
                     self.ws.as_mut().unwrap().send(Json(&command));
@@ -220,6 +166,14 @@ impl Component<Context> for AppModel {
                             self.opponent = Some(param.opponent.clone());
                         }
                     }
+                    WsResponse::PlayedBoard(ref param) => match self.connected {
+                        ConnectionStatus::Connected(ref session_id) => {
+                            if param.board_id == self.board_id && session_id == &param.session_id {
+                                self.opponent_move = Some(param.pos.clone());
+                            }
+                        }
+                        _ => {}
+                    },
                 }
             }
 
@@ -235,7 +189,17 @@ impl Component<Context> for AppModel {
             }
             Msg::BoardCellClicked((x, y)) => {
                 info!("User play {} {}", x, y);
+                if let ConnectionStatus::Connected(ref session_id) = self.connected {
+                    let payload = WsPlayBoard {
+                        session_id: session_id.as_str(),
+                        board_id: self.board_id.as_str(),
+                        pos: (x, y),
+                    };
+                    let command = WsRequest::PlayBoard(payload);
+                    self.ws.as_mut().unwrap().send(Json(&command));
+                }
             }
+
             Msg::Ignore => info!("Received an ignored message"),
         }
         true
@@ -263,14 +227,14 @@ impl AppModel {
                         { format!("{} user(s) online", self.users_count) }
                     </span>
                     <button onclick=|_| Msg::Disconnecting.into(),>
-                        { format!("Disconnect {}", self.username) }
+                        { format!("Disconnect {}", self.nickname) }
                     </button>
                 }
             }
             ConnectionStatus::Connecting => {
                 html!{
                     <span>
-                        { format!("Connecting {}...", self.username) }
+                        { format!("Connecting {}...", self.nickname) }
                     </span>
                 }
             }
@@ -279,7 +243,7 @@ impl AppModel {
                     <>
                     <input class="edit",
                         type="text",
-                        value=&self.username_input,
+                        value=&self.nickname_input,
                         oninput=|e| Msg::GotInput(e.value),
                         />
                     <button onclick=|_| Msg::Connecting.into(),>{ "Connect" }</button>
@@ -292,7 +256,7 @@ impl AppModel {
                     <>
                     <input class="edit",
                         type="text",
-                        value=&self.username_input,
+                        value=&self.nickname_input,
                         oninput=|e| Msg::GotInput(e.value),
                         />
                     <button onclick=|_| Msg::Connecting.into(),>{ "Connect" }</button>
@@ -304,9 +268,14 @@ impl AppModel {
 
     fn view_board(&self) -> Html<Context, Self> {
         match self.connected {
-            ConnectionStatus::Connected(ref session_id) => {
+            ConnectionStatus::Connected(_) => {
                 html!{
-                    <Board: onstart=Msg::JoinBoard, onclick=Msg::BoardCellClicked, opponent=&self.opponent, />
+                    <Board: nickname=&self.nickname,
+                        opponent=&self.opponent,
+                        opponent_move=&self.opponent_move,
+                        color=&self.color,
+                        onstart=Msg::JoinBoard,
+                        onclick=Msg::BoardCellClicked, />
                 }
             }
             _ => {

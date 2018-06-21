@@ -43,7 +43,6 @@ fn ws_route(req: HttpRequest<WsOthelloSessionState>) -> Result<HttpResponse, Err
         WsOthelloSession {
             id: "".to_string(),
             hb: Instant::now(),
-            nickname: None,
         },
     )
 }
@@ -54,8 +53,6 @@ struct WsOthelloSession {
     /// Client must send ping at least once per 10 seconds, otherwise we drop
     /// connection.
     hb: Instant,
-    /// peer name
-    nickname: Option<String>,
 }
 
 impl Actor for WsOthelloSession {
