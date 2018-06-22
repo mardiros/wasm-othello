@@ -193,11 +193,18 @@ impl Canvas {
     }
 }
 
+#[derive(PartialEq)]
+enum Status {
+    BeingCreated,
+    WaitingOpponent,
+    Playing,
+}
+
 pub struct Board {
     canvas: Option<Canvas>,
     store: Rc<RefCell<Store>>,
 
-    started: bool,
+    status: Status,
     nickname: String,
     opponent: Option<String>,
     onstart: Option<Callback<()>>,
@@ -241,11 +248,11 @@ impl Board {
     }
 
     fn view_start_button(&self) -> Html<Context, Self> {
-        if !self.started {
+        if self.status == Status::BeingCreated {
             html!{
                 <button
                     onclick=|_|Msg::AttachEvent,
-                    >{"Start"}
+                    >{"Join a board"}
                 </button>
             }
         } else {
@@ -256,23 +263,37 @@ impl Board {
         }
     }
     fn view_player_score(&self) -> Html<Context, Self> {
-        if !self.started {
-            return html!{
-                <>
-                </>
-            };
-        }
-        match self.opponent {
-            Some(ref nick) => {
+        match self.status {
+            Status::BeingCreated => {
                 html!{
-                    <p>{"Opponent "}  { nick }</p>
+                    <>
+                    </>
                 }
             }
-            None => {
+            Status::WaitingOpponent => {
                 html!{
                     <p> { "Waiting for opponent player" } </p>
                 }
             }
+            Status::Playing => match self.opponent {
+                Some(ref nick) => {
+                    html!{
+                        <p>{"Opponent "}  { nick }</p>
+                    }
+                }
+                None => {
+                    html!{
+                        <>
+                            <p> { "Connection lost with opponent player" } </p>
+                            <button
+                                onclick=|_|Msg::RespawnBoard,
+                                >{"Join a board"}
+                            </button>
+                        </>
+
+                    }
+                }
+            },
         }
     }
 }
@@ -280,6 +301,8 @@ impl Board {
 pub enum Msg {
     AttachEvent,
     Clicked(ClickEvent),
+    /// Restart the game
+    RespawnBoard,
 }
 
 impl Component<Context> for Board {
@@ -297,7 +320,7 @@ impl Component<Context> for Board {
             opponent: props.opponent,
             onstart: props.onstart,
             onclick: props.onclick,
-            started: false,
+            status: Status::BeingCreated,
         }
     }
 
@@ -309,11 +332,11 @@ impl Component<Context> for Board {
                     Canvas::new("#game", &store)
                 };
                 self.canvas = Some(canvas);
+                self.status = Status::WaitingOpponent;
                 self.paint();
                 if let Some(ref onstart) = self.onstart {
                     onstart.emit(());
                 }
-                self.started = true;
             }
             Msg::Clicked(ref event) => {
                 if self.opponent == None {
@@ -335,6 +358,22 @@ impl Component<Context> for Board {
                     }
                 }
             }
+            Msg::RespawnBoard => {
+                let store = Store::new(60);
+                self.store = Rc::new(RefCell::new(store));
+                let canvas = {
+                    let store = self.store.borrow();
+                    Canvas::new("#game", &store)
+                };
+                self.canvas = Some(canvas);
+                self.opponent = None;
+                self.status = Status::WaitingOpponent;
+                if let Some(ref onstart) = self.onstart {
+                    onstart.emit(());
+                }
+                let context = self.canvas_context();
+                self.store.borrow().paint(&context);
+            }
         }
         true
     }
@@ -355,6 +394,10 @@ impl Component<Context> for Board {
             }
             let context = self.canvas_context();
             store.paint(&context);
+        }
+
+        if self.opponent.is_some() {
+            self.status = Status::Playing;
         }
 
         if let Some((x, y)) = props.opponent_move {

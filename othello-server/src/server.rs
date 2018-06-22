@@ -8,8 +8,8 @@ use rand::{self, Rng, ThreadRng};
 use rand::distributions::Alphanumeric;
 use actix::prelude::*;
 
-use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsOpponentJoinedBoard, WsPlayBoard,
-                WsRequest, WsResponse};
+use wscommand::{Color, WsConnectedParam, WsJoinedBoard, WsOpponentDisconnected,
+                WsOpponentJoinedBoard, WsPlayBoard, WsRequest, WsResponse};
 
 /// Message for Othello server communications
 
@@ -38,7 +38,7 @@ pub struct SessionData {
     // the nickname received in the ConnectionParam
     nickname: Option<String>,
     // a board where the user is actually
-    board: Option<String>,
+    board_id: Option<String>,
 }
 
 pub struct OthelloActor {
@@ -97,10 +97,9 @@ impl Handler<Connect> for OthelloActor {
             SessionData {
                 addr: msg.addr,
                 nickname: None,
-                board: None,
+                board_id: None,
             },
         );
-
         // send id back
         id
     }
@@ -111,13 +110,38 @@ impl Handler<Disconnect> for OthelloActor {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        // cleaning boarding
-        // TODO
-        // cleaning boards
-        // TODO
-
-        if self.sessions.remove(&msg.id).is_some() {
-            debug!("Session {} closed", msg.id);
+        let boarding = self.boarding.clone(); // cannot move out of borrowed content
+        if let Some(session) = self.sessions.remove(&msg.id) {
+            info!("Closing session {}", msg.id);
+            if let Some(ref board_id) = session.board_id {
+                if let Some(brd) = self.boards.remove(board_id) {
+                    info!("Closing board {}", board_id);
+                    // if the board where waiing for someone
+                    self.boarding = boarding.into_iter().filter(|b| b != board_id).collect();
+                    if brd.1 == msg.id {
+                        let opponent_sess = self.sessions.get(&brd.0);
+                        if let Some(opp_sess) = opponent_sess {
+                            let back = WsResponse::OpponentDisconnected(WsOpponentDisconnected {
+                                session_id: brd.0.clone(),
+                                board_id: board_id.clone(),
+                            });
+                            let _ = opp_sess.addr.do_send(back);
+                        }
+                    } else if brd.0 == msg.id {
+                        let opponent_sess = self.sessions.get(&brd.1);
+                        if let Some(opp_sess) = opponent_sess {
+                            let back = WsResponse::OpponentDisconnected(WsOpponentDisconnected {
+                                session_id: brd.1.clone(),
+                                board_id: board_id.clone(),
+                            });
+                            let _ = opp_sess.addr.do_send(back);
+                        }
+                    }
+                }
+            }
+            info!("Session {} closed", msg.id);
+        } else {
+            error!("Unregistered session has disconnect");
         }
     }
 }
@@ -147,26 +171,30 @@ impl Handler<ClientMessage> for OthelloActor {
                 }
                 WsRequest::JoinBoard(ref param) => {
                     info!("Boarding: {:?}", self.boarding);
-                    let joined = if self.boarding.len() > 0 {
+                    if self.boarding.len() > 0 {
                         // join the board as a white player
                         let board_id = self.boarding.remove(0);
+
                         let board = self.boards.get_mut(&board_id);
                         let opponent = if let Some(brd) = board {
                             let opponent_sess = self.sessions.get(&brd.0);
+
                             brd.1 = param.session_id.clone();
                             if let Some(ref opp_sess) = opponent_sess {
                                 if let Some(ref name) = opp_sess.nickname {
                                     // notify the first user of the board he can play
                                     let self_sess = self.sessions.get(&param.session_id);
-                                    let self_nick =
-                                        self_sess.unwrap().nickname.as_ref().unwrap().as_str();
-                                    let back =
-                                        WsResponse::OpponentJoinedBoard(WsOpponentJoinedBoard {
-                                            id: board_id.clone(),
-                                            opponent: self_nick.to_string(),
-                                        });
-                                    info!("Sending back message");
-                                    let _ = opp_sess.addr.do_send(back);
+                                    if let Some(ref sess) = self_sess {
+                                        let self_nick = sess.nickname.as_ref().unwrap().as_str();
+                                        let back = WsResponse::OpponentJoinedBoard(
+                                            WsOpponentJoinedBoard {
+                                                id: board_id.clone(),
+                                                opponent: self_nick.to_string(),
+                                            },
+                                        );
+                                        info!("Sending back message");
+                                        let _ = opp_sess.addr.do_send(back);
+                                    }
 
                                     Some(name.to_owned())
                                 } else {
@@ -186,27 +214,46 @@ impl Handler<ClientMessage> for OthelloActor {
                             );
                             None
                         };
-                        WsJoinedBoard {
+
+                        // register the board_id
+                        if opponent.is_some() {
+                            let mut self_sess = self.sessions.get_mut(&param.session_id);
+                            if let Some(ref mut sess) = self_sess {
+                                sess.board_id = Some(board_id.clone());
+                            }
+                        }
+
+                        Some(WsResponse::JoinedBoard(WsJoinedBoard {
                             id: board_id,
                             color: Color::White,
                             opponent: opponent,
-                        }
+                        }))
                     } else {
-                        // create the board and join it as a black player
                         let board_id: String = iter::repeat(())
                             .map(|()| self.rng.borrow_mut().sample(Alphanumeric))
                             .take(12)
                             .collect();
-                        self.boards
-                            .insert(board_id.clone(), (param.session_id.clone(), "".to_owned()));
-                        self.boarding.push(board_id.clone());
-                        WsJoinedBoard {
-                            id: board_id,
-                            color: Color::Black,
-                            opponent: None,
+                        let self_sess = self.sessions.get_mut(&param.session_id);
+                        if let Some(sess) = self_sess {
+                            // create the board and join it as a black player
+                            self.boards.insert(
+                                board_id.clone(),
+                                (param.session_id.clone(), "".to_owned()),
+                            );
+                            self.boarding.push(board_id.clone());
+                            // register the user on the created board
+                            sess.board_id = Some(board_id.clone());
+
+                            Some(WsResponse::JoinedBoard(WsJoinedBoard {
+                                id: board_id,
+                                color: Color::Black,
+                                opponent: None,
+                            }))
+                        } else {
+                            error!("Unknown session id receided to join the board");
+                            None
                         }
-                    };
-                    Some(WsResponse::JoinedBoard(joined))
+                    }
                 }
                 WsRequest::PlayBoard(ref param) => {
                     let sess_id = param.session_id.as_str();

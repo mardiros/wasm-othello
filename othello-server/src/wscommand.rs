@@ -74,6 +74,15 @@ pub struct WsOpponentJoinedBoard {
     pub opponent: String,
 }
 
+/// Connected parameter
+#[derive(Serialize, Debug)]
+pub struct WsOpponentDisconnected {
+    /// a session id of the user that will be ejected
+    pub session_id: String,
+    /// a board id
+    pub board_id: String,
+}
+
 /// This type handle type per command
 #[derive(Message, Serialize, Debug)]
 pub enum WsResponse {
@@ -82,4 +91,5 @@ pub enum WsResponse {
     JoinedBoard(WsJoinedBoard),
     OpponentJoinedBoard(WsOpponentJoinedBoard),
     PlayedBoard(WsPlayBoard),
+    OpponentDisconnected(WsOpponentDisconnected),
 }

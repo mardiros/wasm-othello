@@ -63,6 +63,14 @@ pub struct WsPlayedBoard {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct WsOpponentDisconnected {
+    /// the user session to validate
+    pub session_id: String,
+    /// the board id to leave
+    pub board_id: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub enum WsResponse {
     /// `connected` response parameters
     ConnectedParam(WsConnectedParam),
@@ -72,4 +80,6 @@ pub enum WsResponse {
     OpponentJoinedBoard(WsOpponentJoinedBoard),
     /// Reveiced the move from the opponent,
     PlayedBoard(WsPlayedBoard),
+    /// Received when the opponent users disconnect during a game, will leave the board
+    OpponentDisconnected(WsOpponentDisconnected),
 }

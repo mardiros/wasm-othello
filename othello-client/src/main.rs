@@ -42,29 +42,42 @@ impl From<WsAction> for Msg {
     }
 }
 
+#[derive(PartialEq)]
+struct Session {
+    session_id: String,
+    board_id: String,
+    users_count: usize,
+    nickname: String,
+    opponent: Option<String>,
+    color: Option<Color>,
+}
+
 /// User connection status
-pub enum ConnectionStatus {
+#[derive(PartialEq)]
+enum ConnectionStatus {
     /// The useer is not connected
     Disconnected,
     /// The user trying to connect
-    Connecting,
+    Connecting(String),
     /// The user is successfully connected
-    Connected(String),
+    Connected(Session),
     /// The user try to connect but there is an issue
     ConnectionError(String),
 }
 
+/// Main Component of the application
 pub struct AppModel {
+    /// Contains session information in case user is connected
     connected: ConnectionStatus,
-    users_count: usize,
-    nickname: String,
 
-    board_id: String,
-    opponent: Option<String>,
+    /// Received by the websocket, send back to the board via a property
     opponent_move: Option<(usize, usize)>,
-    color: Option<Color>,
+
+    /// the web socket to communicate with the server
     ws: Option<WebSocketTask>,
 
+    // inputs
+    /// store the value of the nickname input
     nickname_input: String,
 }
 
@@ -87,22 +100,20 @@ impl Component<Context> for AppModel {
     fn create(_: Self::Properties, _: &mut Env<Context, Self>) -> Self {
         AppModel {
             connected: ConnectionStatus::Disconnected,
-            nickname: "".to_string(),
-
-            board_id: "".to_string(),
-            opponent: None,
             opponent_move: None,
-            color: None,
-
-            users_count: 0,
             nickname_input: "".to_string(),
             ws: None,
         }
     }
 
     fn update(&mut self, msg: Self::Message, env: &mut Env<Context, Self>) -> ShouldRender {
+        self.opponent_move = None; // always reset the move
+
         match msg {
             Msg::Connecting => {
+                if self.nickname_input.len() == 0 {
+                    return false;
+                }
                 let callback = env.send_back(|Json(data)| Msg::WsReady(data));
                 let notification = env.send_back(|status| match status {
                     WebSocketStatus::Opened => WsAction::SendUser.into(),
@@ -112,12 +123,12 @@ impl Component<Context> for AppModel {
                 let task = ws_service.connect("ws://[::1]:8080/ws/", callback, notification);
                 self.ws = Some(task);
 
-                self.connected = ConnectionStatus::Connecting;
-                self.nickname = self.nickname_input.clone();
+                self.connected = ConnectionStatus::Connecting(self.nickname_input.clone());
                 info!("disconnect");
             }
             Msg::Disconnecting => {
                 self.connected = ConnectionStatus::Disconnected;
+                self.ws.take().unwrap().cancel();
                 info!("disconnected");
             }
             Msg::GotInput(value) => {
@@ -133,13 +144,17 @@ impl Component<Context> for AppModel {
                     self.ws.as_mut().unwrap().send(Json(&command));
                 }
                 WsAction::Disconnect => {
+                    self.connected = ConnectionStatus::Disconnected;
                     self.ws.take().unwrap().cancel();
                 }
                 WsAction::Lost => {
                     self.ws = None;
-                    self.connected = ConnectionStatus::ConnectionError(
-                        "Service Temporarily Unavailable".to_string(),
-                    );
+                    if self.connected != ConnectionStatus::Disconnected {
+                        error!("Connection Closed from the server");
+                        self.connected = ConnectionStatus::ConnectionError(
+                            "Service Temporarily Unavailable".to_string(),
+                        );
+                    }
                 }
             },
 
@@ -152,36 +167,67 @@ impl Component<Context> for AppModel {
                 info!("{:?}", response);
                 match response {
                     WsResponse::ConnectedParam(ref params) => {
-                        let session_id = params.id.clone();
-                        self.users_count = params.users_count;
-                        self.connected = ConnectionStatus::Connected(session_id);
+                        let new_status =
+                            if let ConnectionStatus::Connecting(ref nickname) = self.connected {
+                                let session_id = params.id.clone();
+                                let users_count = params.users_count;
+                                let nickname = nickname.clone();
+                                ConnectionStatus::Connected(Session {
+                                    session_id,
+                                    users_count,
+                                    nickname,
+                                    board_id: "".to_string(),
+                                    color: None,
+                                    opponent: None,
+                                })
+                            } else {
+                                ConnectionStatus::Disconnected
+                            };
+                        self.connected = new_status;
                     }
                     WsResponse::JoinedBoard(ref param) => {
-                        self.board_id = param.id.clone();
-                        self.color = Some(param.color.clone());
-                        self.opponent = param.opponent.clone();
-                    }
-                    WsResponse::OpponentJoinedBoard(ref param) => {
-                        if param.id == self.board_id {
-                            self.opponent = Some(param.opponent.clone());
+                        if let ConnectionStatus::Connected(ref mut session) = self.connected {
+                            // FIXME: validate the session id from the param
+                            session.board_id = param.id.clone();
+                            session.color = Some(param.color.clone());
+                            session.opponent = param.opponent.clone();
                         }
                     }
-                    WsResponse::PlayedBoard(ref param) => match self.connected {
-                        ConnectionStatus::Connected(ref session_id) => {
-                            if param.board_id == self.board_id && session_id == &param.session_id {
+                    WsResponse::OpponentJoinedBoard(ref param) => {
+                        if let ConnectionStatus::Connected(ref mut session) = self.connected {
+                            if param.id == session.board_id {
+                                session.opponent = Some(param.opponent.clone());
+                            }
+                        }
+                    }
+                    WsResponse::PlayedBoard(ref param) => {
+                        if let ConnectionStatus::Connected(ref mut session) = self.connected {
+                            if param.board_id == session.board_id
+                                && session.session_id == param.session_id
+                            {
                                 self.opponent_move = Some(param.pos.clone());
                             }
                         }
-                        _ => {}
-                    },
+                    }
+                    WsResponse::OpponentDisconnected(ref param) => {
+                        if let ConnectionStatus::Connected(ref mut session) = self.connected {
+                            if param.session_id == session.session_id {
+                                session.board_id = "".to_string();
+                                session.color = None;
+                                session.opponent = None;
+                            } else {
+                                error!("OpponentDisconnect reveived with an invalid session_id");
+                            }
+                        }
+                    }
                 }
             }
 
             Msg::JoinBoard(()) => {
                 info!("Join board");
-                if let ConnectionStatus::Connected(ref session_id) = self.connected {
+                if let ConnectionStatus::Connected(ref session) = self.connected {
                     let payload = WsJoinBoard {
-                        session_id: session_id.as_str(),
+                        session_id: session.session_id.as_str(),
                     };
                     let command = WsRequest::JoinBoard(payload);
                     self.ws.as_mut().unwrap().send(Json(&command));
@@ -189,10 +235,10 @@ impl Component<Context> for AppModel {
             }
             Msg::BoardCellClicked((x, y)) => {
                 info!("User play {} {}", x, y);
-                if let ConnectionStatus::Connected(ref session_id) = self.connected {
+                if let ConnectionStatus::Connected(ref session) = self.connected {
                     let payload = WsPlayBoard {
-                        session_id: session_id.as_str(),
-                        board_id: self.board_id.as_str(),
+                        session_id: session.session_id.as_str(),
+                        board_id: session.board_id.as_str(),
                         pos: (x, y),
                     };
                     let command = WsRequest::PlayBoard(payload);
@@ -221,20 +267,20 @@ impl Renderable<Context, AppModel> for AppModel {
 impl AppModel {
     fn view_connection_button(&self) -> Html<Context, Self> {
         match self.connected {
-            ConnectionStatus::Connected(_) => {
+            ConnectionStatus::Connected(ref session) => {
                 html!{
                     <span>
-                        { format!("{} user(s) online", self.users_count) }
+                        { format!("{} user(s) online", session.users_count) }
                     </span>
                     <button onclick=|_| Msg::Disconnecting.into(),>
-                        { format!("Disconnect {}", self.nickname) }
+                        { format!("Disconnect {}", session.nickname) }
                     </button>
                 }
             }
-            ConnectionStatus::Connecting => {
+            ConnectionStatus::Connecting(ref nickname) => {
                 html!{
                     <span>
-                        { format!("Connecting {}...", self.nickname) }
+                        { format!("Connecting {}...", nickname) }
                     </span>
                 }
             }
@@ -268,12 +314,12 @@ impl AppModel {
 
     fn view_board(&self) -> Html<Context, Self> {
         match self.connected {
-            ConnectionStatus::Connected(_) => {
+            ConnectionStatus::Connected(ref session) => {
                 html!{
-                    <Board: nickname=&self.nickname,
-                        opponent=&self.opponent,
+                    <Board: nickname=&session.nickname,
+                        opponent=&session.opponent,
+                        color=&session.color,
                         opponent_move=&self.opponent_move,
-                        color=&self.color,
                         onstart=Msg::JoinBoard,
                         onclick=Msg::BoardCellClicked, />
                 }
