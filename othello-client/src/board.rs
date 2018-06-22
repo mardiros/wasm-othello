@@ -340,11 +340,13 @@ impl Component<Context> for Board {
             }
             Msg::Clicked(ref event) => {
                 if self.opponent == None {
+                    info!("Clicked but waiting for an opponent");
                     return false;
                 }
                 let mut store = self.store.borrow_mut();
                 // only the play who play should count
                 if store.current_player != store.local_player {
+                    info!("Clicked but it is the turn of the opponent");
                     return false;
                 }
 

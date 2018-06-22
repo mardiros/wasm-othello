@@ -25,8 +25,8 @@ pub enum WsRequest<'a> {
 
 #[derive(Deserialize, Debug)]
 pub struct WsConnectedParam {
-    /// a session id
-    pub id: String,
+    /// a session_id to reuse while playing
+    pub session_id: String,
     /// the number of users that are connected to the game
     pub users_count: usize,
 }
@@ -39,8 +39,10 @@ pub enum Color {
 
 #[derive(Deserialize, Debug)]
 pub struct WsJoinedBoard {
+    /// a session_id to reuse while playing
+    pub session_id: String,
     /// a board_id to reuse while playing
-    pub id: String,
+    pub board_id: String,
     /// the color where the user play
     pub color: Color,
     // the nickname received in the ConnectionParam
@@ -49,8 +51,10 @@ pub struct WsJoinedBoard {
 
 #[derive(Deserialize, Debug)]
 pub struct WsOpponentJoinedBoard {
+    /// a session_id to reuse while playing
+    pub session_id: String,
     /// a board_id to reuse while playing
-    pub id: String,
+    pub board_id: String,
     // the nickname received in the ConnectionParam
     pub opponent: String,
 }

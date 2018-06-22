@@ -164,7 +164,7 @@ impl Handler<ClientMessage> for OthelloActor {
                     let session = session.unwrap();
                     session.nickname = Some(param.nickname.clone());
                     let resp = WsResponse::ConnectedParam(WsConnectedParam {
-                        id: msg.id.clone(),
+                        session_id: msg.id.clone(),
                         users_count: users_count,
                     });
                     Some(resp)
@@ -188,7 +188,8 @@ impl Handler<ClientMessage> for OthelloActor {
                                         let self_nick = sess.nickname.as_ref().unwrap().as_str();
                                         let back = WsResponse::OpponentJoinedBoard(
                                             WsOpponentJoinedBoard {
-                                                id: board_id.clone(),
+                                                session_id: brd.0.clone(),
+                                                board_id: board_id.clone(),
                                                 opponent: self_nick.to_string(),
                                             },
                                         );
@@ -224,7 +225,8 @@ impl Handler<ClientMessage> for OthelloActor {
                         }
 
                         Some(WsResponse::JoinedBoard(WsJoinedBoard {
-                            id: board_id,
+                            session_id: param.session_id.clone(),
+                            board_id: board_id,
                             color: Color::White,
                             opponent: opponent,
                         }))
@@ -245,7 +247,8 @@ impl Handler<ClientMessage> for OthelloActor {
                             sess.board_id = Some(board_id.clone());
 
                             Some(WsResponse::JoinedBoard(WsJoinedBoard {
-                                id: board_id,
+                                session_id: param.session_id.clone(),
+                                board_id: board_id,
                                 color: Color::Black,
                                 opponent: None,
                             }))

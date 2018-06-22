@@ -124,13 +124,14 @@ impl Component<Context> for AppModel {
                 self.ws = Some(task);
 
                 self.connected = ConnectionStatus::Connecting(self.nickname_input.clone());
-                info!("disconnect");
+                info!("connecting {}", self.nickname_input);
             }
             Msg::Disconnecting => {
                 self.connected = ConnectionStatus::Disconnected;
                 self.ws.take().unwrap().cancel();
                 info!("disconnected");
             }
+
             Msg::GotInput(value) => {
                 self.nickname_input = value;
             }
@@ -169,7 +170,7 @@ impl Component<Context> for AppModel {
                     WsResponse::ConnectedParam(ref params) => {
                         let new_status =
                             if let ConnectionStatus::Connecting(ref nickname) = self.connected {
-                                let session_id = params.id.clone();
+                                let session_id = params.session_id.clone();
                                 let users_count = params.users_count;
                                 let nickname = nickname.clone();
                                 ConnectionStatus::Connected(Session {
@@ -187,16 +188,34 @@ impl Component<Context> for AppModel {
                     }
                     WsResponse::JoinedBoard(ref param) => {
                         if let ConnectionStatus::Connected(ref mut session) = self.connected {
-                            // FIXME: validate the session id from the param
-                            session.board_id = param.id.clone();
-                            session.color = Some(param.color.clone());
-                            session.opponent = param.opponent.clone();
+                            if param.session_id == session.session_id {
+                                session.board_id = param.board_id.clone();
+                                session.color = Some(param.color.clone());
+                                session.opponent = param.opponent.clone();
+                            } else {
+                                error!(
+                                    "Session id does not match {} != {}",
+                                    param.session_id, session.session_id
+                                );
+                            }
                         }
                     }
                     WsResponse::OpponentJoinedBoard(ref param) => {
                         if let ConnectionStatus::Connected(ref mut session) = self.connected {
-                            if param.id == session.board_id {
-                                session.opponent = Some(param.opponent.clone());
+                            if param.session_id == session.session_id {
+                                if param.board_id == session.board_id {
+                                    session.opponent = Some(param.opponent.clone());
+                                } else {
+                                    error!(
+                                        "Board id does not match {} != {}",
+                                        param.board_id, session.board_id
+                                    );
+                                }
+                            } else {
+                                error!(
+                                    "Session id does not match {} != {}",
+                                    param.session_id, session.session_id
+                                );
                             }
                         }
                     }

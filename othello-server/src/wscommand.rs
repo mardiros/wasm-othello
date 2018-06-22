@@ -12,7 +12,7 @@ pub struct WsConnectingParam {
 /// Connect parameter
 #[derive(Deserialize, Debug)]
 pub struct WsJoinBoard {
-    /// a user nickname
+    /// a previsouly registered session id
     pub session_id: String,
 }
 
@@ -44,7 +44,7 @@ pub enum WsRequest {
 #[derive(Serialize, Debug)]
 pub struct WsConnectedParam {
     /// a session id
-    pub id: String,
+    pub session_id: String,
     pub users_count: usize,
 }
 
@@ -57,8 +57,10 @@ pub enum Color {
 /// Connected parameter
 #[derive(Serialize, Debug)]
 pub struct WsJoinedBoard {
+    /// registered session id
+    pub session_id: String,
     /// a board id
-    pub id: String,
+    pub board_id: String,
     /// the user color
     pub color: Color,
     /// the nick of the opponnent user
@@ -68,8 +70,10 @@ pub struct WsJoinedBoard {
 /// Connected parameter
 #[derive(Serialize, Debug)]
 pub struct WsOpponentJoinedBoard {
+    /// registered session id
+    pub session_id: String,
     /// a board id
-    pub id: String,
+    pub board_id: String,
     /// the nick of the opponnent user
     pub opponent: String,
 }
