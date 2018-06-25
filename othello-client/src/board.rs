@@ -271,14 +271,60 @@ impl Board {
                 }
             }
             Status::WaitingOpponent => {
-                html!{
-                    <p> { "Waiting for opponent player" } </p>
+                let store = self.store.borrow();
+                match store.local_player {
+                    Cell::Black => {
+                        html!{
+                            <ul>
+                                <li>{"Black: "}{ self.nickname.as_str() }</li>
+                                <li>{"White: Waiting for player"}</li>
+                            </ul>
+                        }
+                    }
+                    Cell::White => {
+                        html!{
+                            <ul>
+                                <li>{"Black: Waiting for player"}</li>
+                                <li>{"White: "}{ self.nickname.as_str() }</li>
+                            </ul>
+                        }
+                    }
+                    Cell::Empty => {
+                        error!("No color defined for player while waiting for opponent");
+                        html!{
+                            <>
+                            </>
+                        }
+                    }
                 }
             }
             Status::Playing => match self.opponent {
-                Some(ref nick) => {
-                    html!{
-                        <p>{"Opponent "}  { nick }</p>
+                Some(ref opponent) => {
+                    let store = self.store.borrow();
+                    match store.local_player {
+                        Cell::Black => {
+                            html!{
+                                <ul>
+                                    <li>{"Black: "}{ self.nickname.as_str() }</li>
+                                    <li>{"White: "}{ opponent }</li>
+                                </ul>
+                            }
+                        }
+                        Cell::White => {
+                            html!{
+                                <ul>
+                                    <li>{"Black: "}{ opponent }</li>
+                                    <li>{"White: "}{ self.nickname.as_str() }</li>
+                                </ul>
+                            }
+                        }
+                        Cell::Empty => {
+                            error!("No color defined for player while playing");
+                            html!{
+                                <>
+                                </>
+                            }
+                        }
                     }
                 }
                 None => {
@@ -287,7 +333,7 @@ impl Board {
                             <p> { "Connection lost with opponent player" } </p>
                             <button
                                 onclick=|_|Msg::RespawnBoard,
-                                >{"Join a board"}
+                                >{"Join another board"}
                             </button>
                         </>
 
