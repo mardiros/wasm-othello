@@ -259,6 +259,20 @@ impl Board {
             }
         }
     }
+    fn view_playing(&self, cell: Cell) -> Html<Context, Self> {
+        if self.store.current_player == cell {
+            html! {
+                <>
+                {" ◀"}
+                </>
+            }
+        } else {
+            html! {
+                <>
+                </>
+            }
+        }
+    }
     fn view_player_score(&self) -> Html<Context, Self> {
         match self.status {
             Status::BeingCreated => {
@@ -296,20 +310,21 @@ impl Board {
             }
             Status::Playing => match self.opponent {
                 Some(ref opponent) => {
+
                     match self.store.local_player {
                         Cell::Black => {
                             html!{
                                 <ul>
-                                    <li>{"Black: "}{ self.nickname.as_str() }</li>
-                                    <li>{"White: "}{ opponent }</li>
+                                    <li>{"Black: "}{ self.nickname.as_str() }{ self.view_playing(Cell::Black) }</li>
+                                    <li>{"White: "}{ opponent }{ self.view_playing(Cell::White) }</li>
                                 </ul>
                             }
                         }
                         Cell::White => {
                             html!{
                                 <ul>
-                                    <li>{"Black: "}{ opponent }</li>
-                                    <li>{"White: "}{ self.nickname.as_str() }</li>
+                                    <li>{"Black: "}{ opponent } { self.view_playing(Cell::Black) }</li>
+                                    <li>{"White: "}{ self.nickname.as_str() } { self.view_playing(Cell::White) }</li>
                                 </ul>
                             }
                         }
