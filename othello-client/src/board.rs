@@ -1,7 +1,5 @@
 use yew::prelude::*;
 
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::f64::consts::PI;
 
 use stdweb::traits::*;
@@ -202,7 +200,7 @@ enum Status {
 
 pub struct Board {
     canvas: Option<Canvas>,
-    store: Rc<RefCell<Store>>,
+    store: Store,
 
     status: Status,
     nickname: String,
@@ -238,8 +236,7 @@ impl Board {
     fn paint(&mut self) {
         if let Some(ref canvas) = self.canvas {
             let context = canvas.context();
-            let store = self.store.clone();
-            store.borrow_mut().paint(&context);
+            self.store.paint(&context);
         }
     }
 
@@ -271,8 +268,7 @@ impl Board {
                 }
             }
             Status::WaitingOpponent => {
-                let store = self.store.borrow();
-                match store.local_player {
+                match self.store.local_player {
                     Cell::Black => {
                         html!{
                             <ul>
@@ -300,8 +296,7 @@ impl Board {
             }
             Status::Playing => match self.opponent {
                 Some(ref opponent) => {
-                    let store = self.store.borrow();
-                    match store.local_player {
+                    match self.store.local_player {
                         Cell::Black => {
                             html!{
                                 <ul>
@@ -357,11 +352,9 @@ impl Component<Context> for Board {
 
     fn create(props: Self::Properties, _env: &mut Env<Context, Self>) -> Self {
         info!("Creating the board");
-        let store = Store::new(60);
-        let store_rc = Rc::new(RefCell::new(store));
         Board {
             canvas: None,
-            store: store_rc,
+            store: Store::new(60),
             nickname: props.nickname,
             opponent: props.opponent,
             onstart: props.onstart,
@@ -374,8 +367,7 @@ impl Component<Context> for Board {
         match msg {
             Msg::AttachEvent => {
                 let canvas = {
-                    let store = self.store.borrow();
-                    Canvas::new("#game", &store)
+                    Canvas::new("#game", &self.store)
                 };
                 self.canvas = Some(canvas);
                 self.status = Status::WaitingOpponent;
@@ -389,30 +381,26 @@ impl Component<Context> for Board {
                     info!("Clicked but waiting for an opponent");
                     return false;
                 }
-                let mut store = self.store.borrow_mut();
+
                 // only the play who play should count
-                if store.current_player != store.local_player {
+                if self.store.current_player != self.store.local_player {
                     info!("Clicked but it is the turn of the opponent");
                     return false;
                 }
 
-                let x = (event.offset_x() / store.cell_width() as f64) as usize;
-                let y = (event.offset_y() / store.cell_width() as f64) as usize;
-                if let Ok(_) = store.play(x, y) {
+                let x = (event.offset_x() / self.store.cell_width() as f64) as usize;
+                let y = (event.offset_y() / self.store.cell_width() as f64) as usize;
+                if let Ok(_) = self.store.play(x, y) {
                     let context = self.canvas_context();
-                    store.paint(&context);
+                    self.store.paint(&context);
                     if let Some(ref onclick) = self.onclick {
                         onclick.emit((x, y));
                     }
                 }
             }
             Msg::RespawnBoard => {
-                let store = Store::new(60);
-                self.store = Rc::new(RefCell::new(store));
-                let canvas = {
-                    let store = self.store.borrow();
-                    Canvas::new("#game", &store)
-                };
+                self.store = Store::new(60);
+                let canvas = Canvas::new("#game", &self.store);
                 self.canvas = Some(canvas);
                 self.opponent = None;
                 self.status = Status::WaitingOpponent;
@@ -420,7 +408,7 @@ impl Component<Context> for Board {
                     onstart.emit(());
                 }
                 let context = self.canvas_context();
-                self.store.borrow().paint(&context);
+                self.store.paint(&context);
             }
         }
         true
@@ -431,17 +419,16 @@ impl Component<Context> for Board {
         self.nickname = props.nickname;
 
         if let Some(color) = props.color {
-            let mut store = self.store.borrow_mut();
             match color {
                 Color::White => {
-                    store.local_player = Cell::White;
+                    self.store.local_player = Cell::White;
                 }
                 Color::Black => {
-                    store.local_player = Cell::Black;
+                    self.store.local_player = Cell::Black;
                 }
             }
             let context = self.canvas_context();
-            store.paint(&context);
+            self.store.paint(&context);
         }
 
         if self.opponent.is_some() {
@@ -449,10 +436,9 @@ impl Component<Context> for Board {
         }
 
         if let Some((x, y)) = props.opponent_move {
-            let mut store = self.store.borrow_mut();
-            if let Ok(_) = store.play(x, y) {
+            if let Ok(_) = self.store.play(x, y) {
                 let context = self.canvas_context();
-                store.paint(&context);
+                self.store.paint(&context);
             }
         }
         true
