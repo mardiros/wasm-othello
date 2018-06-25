@@ -163,6 +163,11 @@ impl Store {
         }
         Ok(())
     }
+
+    fn score(&self) -> (usize, usize) {
+        self.board.score()
+    }
+
 }
 
 struct Canvas {
@@ -273,6 +278,50 @@ impl Board {
             }
         }
     }
+
+    fn view_game_advancement(&self) -> Html<Context, Self> {
+
+        let score = self.store.score();
+
+        if self.store.game_over {
+            let result = if score.0 == score.1 {
+                "draw".to_string()
+            }
+            else if (self.store.local_player == Cell::Black && score.0 > score.1) ||
+               (self.store.local_player == Cell::White && score.0 < score.1) {
+                format!("{} win!", self.nickname)
+            }
+            else {
+                format!("{} win!", self.opponent.as_ref().unwrap())
+            };
+
+            html! {
+                <div>
+                    {"Game Over "}
+                    {" Black " } {score.0}
+                    {" White " } {score.1}
+                    <br/>
+                    { result }
+                </div>
+            }
+        }
+
+        else {
+
+            let percent: f64 = score.0 as f64 * 100. / (score.0 + score.1) as f64;
+            html! {
+                <>
+                <div>
+                    <div style="height:32px; border:1px solid black; background: white;",>
+                        <div style={ format!("float left; background: black; height: 100%; width: {}%", percent)},>
+                        </div>
+                    </div>
+                </div>
+                </>
+            }
+        }
+    }
+
     fn view_player_score(&self) -> Html<Context, Self> {
         match self.status {
             Status::BeingCreated => {
@@ -318,6 +367,7 @@ impl Board {
                                     <li>{"Black: "}{ self.nickname.as_str() }{ self.view_playing(Cell::Black) }</li>
                                     <li>{"White: "}{ opponent }{ self.view_playing(Cell::White) }</li>
                                 </ul>
+                                { self.view_game_advancement() }
                             }
                         }
                         Cell::White => {
@@ -326,6 +376,7 @@ impl Board {
                                     <li>{"Black: "}{ opponent } { self.view_playing(Cell::Black) }</li>
                                     <li>{"White: "}{ self.nickname.as_str() } { self.view_playing(Cell::White) }</li>
                                 </ul>
+                                { self.view_game_advancement() }
                             }
                         }
                         Cell::Empty => {
