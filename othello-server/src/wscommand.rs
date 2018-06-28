@@ -27,6 +27,17 @@ pub struct WsPlayBoard {
     pub pos: (usize, usize),
 }
 
+/// User is sending a gameober
+#[derive(Deserialize, Debug)]
+pub struct WsGameOver {
+    /// a board id
+    pub session_id: String,
+    /// a board id
+    pub board_id: String,
+    /// a position
+    pub score: (usize, usize),
+}
+
 /// This type handle type per command
 #[derive(Deserialize, Debug)]
 pub enum WsRequest {
@@ -34,6 +45,7 @@ pub enum WsRequest {
     ConnectingParam(WsConnectingParam),
     JoinBoard(WsJoinBoard),
     PlayBoard(WsPlayBoard),
+    GameOver(WsGameOver),
 }
 
 ///
