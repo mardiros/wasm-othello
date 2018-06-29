@@ -148,6 +148,10 @@ impl Store {
     }
 
     fn play(&mut self, x: usize, y: usize) -> Result<(), ()> {
+        if self.game_over {
+            // you cannot play after the game is over
+            return Err(());
+        }
         if x > BOARD_SIZE && y > BOARD_SIZE {
             // prevent outside of the grid click
             return Err(());
