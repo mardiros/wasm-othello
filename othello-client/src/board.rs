@@ -449,7 +449,6 @@ impl Component<Context> for Board {
                     Canvas::new("#game", &self.store)
                 };
                 self.canvas = Some(canvas);
-                self.status = Status::WaitingOpponent;
                 self.paint();
                 if let Some(ref onstart) = self.onstart {
                     onstart.emit(());
@@ -487,7 +486,7 @@ impl Component<Context> for Board {
                 let canvas = Canvas::new("#game", &self.store);
                 self.canvas = Some(canvas);
                 self.opponent = None;
-                self.status = Status::WaitingOpponent;
+                self.status = Status::BeingCreated;
                 if let Some(ref onstart) = self.onstart {
                     onstart.emit(());
                 }
@@ -503,6 +502,7 @@ impl Component<Context> for Board {
         self.nickname = props.nickname;
 
         if let Some(color) = props.color {
+            self.status = Status::WaitingOpponent;
             match color {
                 Color::White => {
                     self.store.local_player = Cell::White;
