@@ -319,17 +319,15 @@ impl Board {
         }
 
         else {
-
+            let width = self.store.cell_width() as usize * BOARD_SIZE;
             let percent: f64 = score.0 as f64 * 100. / (score.0 + score.1) as f64;
             html! {
-                <>
-                <div>
+                <div style={ format!("max-width: {}px", width)},>
                     <div style="height:32px; border:1px solid black; background: white;",>
                         <div style={ format!("float left; background: black; height: 100%; width: {}%", percent)},>
                         </div>
                     </div>
                 </div>
-                </>
             }
         }
     }
@@ -375,20 +373,24 @@ impl Board {
                     match self.store.local_player {
                         Cell::Black => {
                             html!{
-                                <ul>
-                                    <li>{"Black: "}{ self.nickname.as_str() }{ self.view_playing(Cell::Black) }</li>
-                                    <li>{"White: "}{ opponent }{ self.view_playing(Cell::White) }</li>
-                                </ul>
-                                { self.view_game_advancement() }
+                                <>
+                                    <ul>
+                                        <li>{"Black: "}{ self.nickname.as_str() }{ self.view_playing(Cell::Black) }</li>
+                                        <li>{"White: "}{ opponent }{ self.view_playing(Cell::White) }</li>
+                                    </ul>
+                                    { self.view_game_advancement() }
+                                </>
                             }
                         }
                         Cell::White => {
                             html!{
-                                <ul>
-                                    <li>{"Black: "}{ opponent } { self.view_playing(Cell::Black) }</li>
-                                    <li>{"White: "}{ self.nickname.as_str() } { self.view_playing(Cell::White) }</li>
-                                </ul>
-                                { self.view_game_advancement() }
+                                <>
+                                    <ul>
+                                        <li>{"Black: "}{ opponent } { self.view_playing(Cell::Black) }</li>
+                                        <li>{"White: "}{ self.nickname.as_str() } { self.view_playing(Cell::White) }</li>
+                                    </ul>
+                                    { self.view_game_advancement() }
+                                </>
                             }
                         }
                         Cell::Empty => {
