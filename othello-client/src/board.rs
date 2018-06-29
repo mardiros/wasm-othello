@@ -309,6 +309,11 @@ impl Board {
                     {" White " } {score.1}
                     <br/>
                     { result }
+                    <br/>
+                    <button
+                        onclick=|_|Msg::RespawnBoard,
+                        >{"Play again"}
+                    </button>
                 </div>
             }
         }
