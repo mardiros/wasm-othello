@@ -311,6 +311,49 @@ impl Handler<ClientMessage> for OthelloActor {
                         None
                     }
                 }
+                WsRequest::GameOver(ref param) => {
+
+                    let self_sess = self.sessions.get(&param.session_id);
+                    if let Some(sess) = self_sess {
+                        let del_board = if sess.board_id.as_ref() == Some(&param.board_id) {
+                            let mut board = self.boards.get_mut(&param.board_id);
+                            if let Some(ref mut brd) = board {
+                                //
+                                let sess_id = param.session_id.as_str();
+                                if brd.0.as_str() == sess_id {
+                                    info!("Closing black board");
+                                    brd.0 = "".to_string();
+                                } else if brd.1.as_str() == sess_id {
+                                    info!("Closing white board");
+                                    brd.0 = "".to_string();
+                                }
+                                if brd.0.len() == 0 && brd.1.len() == 0 {
+                                    Some(&param.board_id)
+                                }
+                                else {
+                                    None
+                                }
+                            }
+                            else {
+                                error!(
+                                    "User {} is pointing to an deleted board id",
+                                    sess.nickname.as_ref().unwrap_or(&"UNKNWOWN".to_string()));
+                                None
+                            }
+                        }
+                        else {
+                            error!(
+                                "User {} is hijacking a board id",
+                                sess.nickname.as_ref().unwrap_or(&"UNKNWOWN".to_string()));
+                            None
+                        };
+                        if let Some(ref board_id) = del_board {
+                            info!("Removing the board {}", board_id);
+                            let _ = self.boards.remove(*board_id);
+                        }
+                    }
+                    None
+                }
             }
         };
         if let Some(r) = resp {

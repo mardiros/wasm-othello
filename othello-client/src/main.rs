@@ -28,7 +28,7 @@ mod wscommand;
 use context::Context;
 use board::Board;
 
-use wscommand::{Color, WsConnectingParam, WsJoinBoard, WsPlayBoard, WsRequest, WsResponse};
+use wscommand::{Color, WsConnectingParam, WsJoinBoard, WsPlayBoard, WsGameOver, WsRequest, WsResponse};
 
 pub enum WsAction {
     SendUser,
@@ -91,6 +91,7 @@ pub enum Msg {
 
     JoinBoard(()),
     BoardCellClicked((usize, usize)),
+    BoardGameOver((usize, usize))
 }
 
 impl Component<Context> for AppModel {
@@ -265,6 +266,18 @@ impl Component<Context> for AppModel {
                 }
             }
 
+            Msg::BoardGameOver((black_score, white_score)) => {
+                if let ConnectionStatus::Connected(ref session) = self.connected {
+                    let payload = WsGameOver {
+                        session_id: session.session_id.as_str(),
+                        board_id: session.board_id.as_str(),
+                        score: (black_score, white_score),
+                    };
+                    let command = WsRequest::GameOver(payload);
+                    self.ws.as_mut().unwrap().send(Json(&command));
+                }
+            }
+
             Msg::Ignore => info!("Received an ignored message"),
         }
         true
@@ -340,7 +353,8 @@ impl AppModel {
                         color=&session.color,
                         opponent_move=&self.opponent_move,
                         onstart=Msg::JoinBoard,
-                        onclick=Msg::BoardCellClicked, />
+                        onclick=Msg::BoardCellClicked, 
+                        ongameover=Msg::BoardGameOver, />
                 }
             }
             _ => {

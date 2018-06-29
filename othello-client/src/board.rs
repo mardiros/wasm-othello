@@ -212,6 +212,7 @@ pub struct Board {
     opponent: Option<String>,
     onstart: Option<Callback<()>>,
     onclick: Option<Callback<(usize, usize)>>,
+    ongameover: Option<Callback<(usize, usize)>>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -222,6 +223,7 @@ pub struct Props {
     pub opponent_move: Option<(usize, usize)>,
     pub onstart: Option<Callback<()>>,
     pub onclick: Option<Callback<(usize, usize)>>,
+    pub ongameover: Option<Callback<(usize, usize)>>,
 }
 
 impl Default for Props {
@@ -233,6 +235,7 @@ impl Default for Props {
             color: None,
             onstart: None,
             onclick: None,
+            ongameover: None,
         }
     }
 }
@@ -425,6 +428,7 @@ impl Component<Context> for Board {
             opponent: props.opponent,
             onstart: props.onstart,
             onclick: props.onclick,
+            ongameover: props.ongameover,
             status: Status::BeingCreated,
         }
     }
@@ -461,6 +465,11 @@ impl Component<Context> for Board {
                     self.store.paint(&context);
                     if let Some(ref onclick) = self.onclick {
                         onclick.emit((x, y));
+                    }
+                    if self.store.game_over {
+                        if let Some(ref ongameover) = self.ongameover {
+                            ongameover.emit((x, y));
+                        }
                     }
                 }
             }

@@ -16,12 +16,27 @@ pub struct WsPlayBoard<'a> {
     pub pos: (usize, usize),
 }
 
+
+#[derive(Serialize, Debug)]
+pub struct WsGameOver<'a> {
+    /// the user session to validate
+    pub session_id: &'a str,
+    /// the board id to leave
+    pub board_id: &'a str,
+    /// (black score, white score)
+    pub score: (usize, usize),
+}
+
+
+/// Web Socket Client Request
 #[derive(Serialize, Debug)]
 pub enum WsRequest<'a> {
     ConnectingParam(WsConnectingParam<'a>),
     JoinBoard(WsJoinBoard<'a>),
     PlayBoard(WsPlayBoard<'a>),
+    GameOver(WsGameOver<'a>),
 }
+
 
 #[derive(Deserialize, Debug)]
 pub struct WsConnectedParam {
@@ -73,6 +88,7 @@ pub struct WsOpponentDisconnected {
     /// the board id to leave
     pub board_id: String,
 }
+
 
 #[derive(Deserialize, Debug)]
 pub enum WsResponse {
