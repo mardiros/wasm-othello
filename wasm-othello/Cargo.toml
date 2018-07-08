@@ -1,0 +1,10 @@
+[package]
+name = "wasm-othello"
+version = "0.1.0"
+authors = ["Guillaume Gauvrit <guillaume@gauvr.it>"]
+
+[dependencies]
+
+stdweb = "^0.4.6"
+log = "^0.4"
+web_logger = "^0.1"

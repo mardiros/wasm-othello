@@ -1,0 +1,26 @@
+[package]
+name = "othello-server"
+version = "0.1.0"
+authors = ["Guillaume Gauvrit <guillaume@gauvr.it>"]
+
+[[bin]]
+name = "othello-server"
+path = "src/main.rs"
+
+[dependencies]
+log = "^0.4"
+pretty_env_logger = "^0.2.3"
+
+rand = "*"
+bytes = "0.4"
+byteorder = "1.1"
+futures = "0.1"
+tokio-io = "0.1"
+tokio-core = "0.1"
+
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "^1.0.66"
+
+actix = "0.5"
+actix-web = "^0.6"
