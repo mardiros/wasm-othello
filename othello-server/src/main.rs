@@ -23,7 +23,7 @@ use std::time::Instant;
 
 use actix::{fut, Actor, Addr, Arbiter, Handler, Running, StreamHandler, Syn, prelude::*};
 use actix_web::server::HttpServer;
-use actix_web::{ws, App, Error, HttpRequest, HttpResponse};
+use actix_web::{fs, ws, App, Error, HttpRequest, HttpResponse};
 
 mod server;
 mod wscommand;
@@ -160,6 +160,7 @@ fn main() {
         App::with_state(state)
                 // websocket
                 .resource("/ws/", |r| r.route().f(ws_route))
+                .handler("/", fs::StaticFiles::new("../static").index_file("index.html"))
     }).bind("[::1]:8080")
         .unwrap()
         .start();
