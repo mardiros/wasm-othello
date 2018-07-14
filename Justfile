@@ -1,5 +1,5 @@
-export RUST_BACKTRACE = "1"
-export RUST_LOG="othello-server"
+export RUST_BACKTRACE="1"
+export RUST_LOG="othello-server=DEBUG,actix=INFO"
 
 dev: debug-client start-server
 
