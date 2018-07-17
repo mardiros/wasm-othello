@@ -162,7 +162,7 @@ fn main() {
                 .middleware(middleware::Logger::default())
                 // websocket
                 .resource("/ws/", |r| r.route().f(ws_route))
-                .handler("/", fs::StaticFiles::new("../static").index_file("index.html"))
+                .handler("/", fs::StaticFiles::new("static").index_file("index.html"))
     }).bind("[::1]:8080")
         .unwrap()
         .start();
