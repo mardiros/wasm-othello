@@ -7,7 +7,7 @@ start-server:
     cargo run -p othello-server
 
 debug-client:
-    cargo +nightly web build --target wasm32-unknown-unknown -p othello-client
+    cargo +nightly web build --target wasm32-unknown-unknown -p othello-client --release
     cp target/wasm32-unknown-unknown/release/othello-client.js static
     cp target/wasm32-unknown-unknown/release/othello-client.wasm static
 
