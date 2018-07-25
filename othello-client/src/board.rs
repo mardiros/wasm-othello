@@ -6,6 +6,7 @@ use stdweb::traits::*;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, CanvasRenderingContext2d, FillRule};
+use stdweb::web::window;
 
 use stdweb::web::event::ClickEvent;
 
@@ -210,7 +211,7 @@ enum Status {
 pub struct Board {
     canvas: Option<Canvas>,
     store: Store,
-
+    cell_width: u32,
     status: Status,
     nickname: String,
     opponent: Option<String>,
@@ -346,14 +347,14 @@ impl Board {
                         html!{
                             <ul>
                                 <li>{"Black: "}{ self.nickname.as_str() }</li>
-                                <li>{"White: Waiting for player"}</li>
+                                <li>{"White: Waiting for another player"}</li>
                             </ul>
                         }
                     }
                     Cell::White => {
                         html!{
                             <ul>
-                                <li>{"Black: Waiting for player"}</li>
+                                <li>{"Black: Waiting for another player"}</li>
                                 <li>{"White: "}{ self.nickname.as_str() }</li>
                             </ul>
                         }
@@ -432,9 +433,13 @@ impl Component<Context> for Board {
 
     fn create(props: Self::Properties, _env: &mut Env<Context, Self>) -> Self {
         info!("Creating the board");
+        let cell_width = ((window().inner_width() as u32) / (BOARD_SIZE as u32)) - 2;
+        let cell_width = ::std::cmp::min(60, cell_width);
+        let cell_width = ::std::cmp::max(32, cell_width);
         Board {
             canvas: None,
-            store: Store::new(60),
+            cell_width: cell_width,
+            store: Store::new(cell_width),
             nickname: props.nickname,
             opponent: props.opponent,
             onstart: props.onstart,
@@ -484,7 +489,7 @@ impl Component<Context> for Board {
                 }
             }
             Msg::RespawnBoard => {
-                self.store = Store::new(60);
+                self.store = Store::new(self.cell_width);
                 let canvas = Canvas::new("#game", &self.store);
                 self.canvas = Some(canvas);
                 self.opponent = None;
