@@ -13,10 +13,9 @@ extern crate stdweb;
 #[macro_use]
 extern crate yew;
 
-use std::env;
-
 use failure::Error;
 
+use stdweb::web::window;
 use yew::prelude::*;
 use yew::services::Task;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
@@ -123,7 +122,15 @@ impl Component<Context> for AppModel {
                     WebSocketStatus::Closed | WebSocketStatus::Error => WsAction::Lost.into(),
                 });
                 let ws_service: &mut WebSocketService = env.as_mut();
-                let endpoint = env::var("OTHELLO_WS_URL").unwrap_or("ws://[::1]:8080/ws/".to_string());
+
+                let endpoint = {
+                    let location = window().location().unwrap();
+                    format!("{}://{}:{}/ws/",
+                        if location.protocol().unwrap() == "https:" { "wss" } else { "ws" },
+                        location.hostname().unwrap(),
+                        location.port().unwrap(),
+                    )
+                };
                 let task = ws_service.connect(endpoint.as_str(), callback, notification);
                 self.ws = Some(task);
 

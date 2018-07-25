@@ -1,4 +1,7 @@
 .vscode
 /target
+/dist
 **/*.rs.bk
 */target
+static/othello-client.js
+static/othello-client.wasm
