@@ -298,8 +298,9 @@ impl Renderable<Context, AppModel> for AppModel {
     fn view(&self) -> Html<Context, Self> {
         html! {
             <div id="main",>
-                { self.view_connection_button() }
-                <br/>
+                <div class="statusline",>
+                    { self.view_status_line() }
+                </div>
                 { self.view_board() }
             </div>
         }
@@ -307,7 +308,7 @@ impl Renderable<Context, AppModel> for AppModel {
 }
 
 impl AppModel {
-    fn view_connection_button(&self) -> Html<Context, Self> {
+    fn view_status_line(&self) -> Html<Context, Self> {
         match self.connected {
             ConnectionStatus::Connected(ref session) => {
                 html!{

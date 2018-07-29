@@ -1,0 +1,11 @@
+.statusline {
+    padding: 5px;
+}
+
+.statusline input {
+    line-height: 1em;
+}
+.statusline button {
+    line-height: 1em;
+    margin: 0 5px;
+}

@@ -19,7 +19,7 @@ dist:
 
     # Copy static
     cp static/index.html dist/static/index.html
-
+    cp static/index.css dist/static/index.css
     # Build the server
     cargo build -p othello-server --release
 
