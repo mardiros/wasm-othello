@@ -260,10 +260,12 @@ impl Board {
     fn view_start_button(&self) -> Html<Context, Self> {
         if self.status == Status::BeingCreated {
             html!{
-                <button
-                    onclick=|_|Msg::AttachEvent,
-                    >{"Join a board"}
-                </button>
+                <div>
+                    <button
+                        onclick=|_|Msg::AttachEvent,
+                        >{"Join a board"}
+                    </button>
+                </div>
             }
         } else {
             html! {

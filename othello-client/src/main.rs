@@ -312,12 +312,14 @@ impl AppModel {
         match self.connected {
             ConnectionStatus::Connected(ref session) => {
                 html!{
-                    <span>
-                        { format!("{} user(s) online", session.users_count) }
-                    </span>
-                    <button onclick=|_| Msg::Disconnecting.into(),>
-                        { format!("Disconnect {}", session.nickname) }
-                    </button>
+                    <>
+                        <span>
+                            { format!("{} user(s) online", session.users_count) }
+                        </span>
+                        <button onclick=|_| Msg::Disconnecting.into(),>
+                            { format!("Disconnect {}", session.nickname) }
+                        </button>
+                    </>
                 }
             }
             ConnectionStatus::Connecting(ref nickname) => {

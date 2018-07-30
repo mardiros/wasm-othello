@@ -1,5 +1,7 @@
 .statusline {
     padding: 5px;
+    text-align: right;
+    max-width: 480px;
 }
 
 .statusline input {
